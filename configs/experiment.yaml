@@ -5,11 +5,20 @@ run:
   output_dir: results/logs
 
 data:
-  root: data/cicids2018
-  files:
-    - DoS attacks-GoldenEye.csv
-  label_col: Label
-  benign_label: Benign
+  dataset: cicids2018   # cicids2018 | beth
+  root: data
+  # CICIDS2018 options
+  cicids2018:
+    files:
+      - DoS attacks-GoldenEye.csv
+    label_col: Label
+    benign_label: Benign
+  # BETH options (team must document actual file names/columns in loader)
+  beth:
+    files:
+      - beth.csv
+    label_col: label
+    benign_label: benign
   test_size: 0.3
 
 model:
@@ -22,12 +31,16 @@ model:
   lr: 0.001
 
 attack:
-  type: none   # none | fgsm | pgd
+  type: none    # none | fgsm | pgd
   epsilon: 0.001
   alpha: 0.005
   iters: 10
 
 explain:
-  method: ig
-  batch_size: 64
-  n_steps: 50
+  method: ig    # ig | shap
+  ig:
+    batch_size: 64
+    n_steps: 50
+  shap:
+    background_size: 100
+    nsamples: 200
