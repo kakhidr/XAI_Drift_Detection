@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+# data should NOT be committed
+data/cicids2018/*.csv
+
+# results are generated
+results/logs/*
+results/figures/*
+results/tables/*
+!results/logs/.gitkeep
+!results/figures/.gitkeep
+!results/tables/.gitkeep

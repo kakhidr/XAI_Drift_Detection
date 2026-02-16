@@ -1,0 +1,33 @@
+run:
+  seed: 42
+  use_cuda: true
+  max_eval: 500
+  output_dir: results/logs
+
+data:
+  root: data/cicids2018
+  files:
+    - DoS attacks-GoldenEye.csv
+  label_col: Label
+  benign_label: Benign
+  test_size: 0.3
+
+model:
+  type: mlp
+  hidden_dims: [128, 64]
+  dropout: 0.1
+  num_classes: 2
+  epochs: 10
+  batch_size: 256
+  lr: 0.001
+
+attack:
+  type: none   # none | fgsm | pgd
+  epsilon: 0.001
+  alpha: 0.005
+  iters: 10
+
+explain:
+  method: ig
+  batch_size: 64
+  n_steps: 50
