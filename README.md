@@ -193,5 +193,3 @@ Adversarial manipulation can cause models to misclassify inputs while maintainin
 Instead of detecting drift in predictions alone, this project investigates drift in feature attributions.
 
 If explanations change significantly under adversarial stress, explanation drift may serve as a secondary detection signal.
-
-This repository supports MSc-level research experimentation and reproducible evaluation.
