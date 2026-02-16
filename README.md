@@ -10,8 +10,10 @@ The project evaluates:
 
 **Datasets**
 - **CICIDS2018** (network-based intrusion detection)
+  - Link :  https://www.unb.ca/cic/datasets/ids-2018.html
 - **BETH** (host-based security dataset)
-
+  - Link : https://www.kaggle.com/datasets/katehighnam/beth-dataset
+    
 **Explainability Methods**
 - **Integrated Gradients (IG)**
 - **SHAP**
