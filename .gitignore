@@ -11,4 +11,4 @@ __pycache__/
 *.pyc
 
 # BUT KEEP PLOTS (IMPORTANT)
-# we do NOT ignore png files
+# we do NOT ignore png file
