@@ -1,178 +1,142 @@
 # XAI Drift Detection
-Detecting Adversarial Manipulation via Attribution Drift
-=========================================================
+## Detecting Adversarial Manipulation via Attribution Drift
+### Overview
 
-## Project Overview
+This project investigates whether drift in model explanations can be used to detect adversarial manipulation and distribution shifts in intrusion detection systems (IDS).
 
-This project investigates whether adversarial manipulation or distribution shift in intrusion detection systems (IDS) can be detected by measuring drift in model explanations.
+Rather than relying only on model predictions, the approach analyzes changes in feature attributions and evaluates their effectiveness using ROC-AUC metrics.
 
-The project evaluates:
+### Objectives
+Primary Objective
 
-**Datasets**
-- **CICIDS2018** (network-based intrusion detection)
-  - Link :  https://www.unb.ca/cic/datasets/ids-2018.html
-- **BETH** (host-based security dataset)
-  - Link : https://www.kaggle.com/datasets/katehighnam/beth-dataset
-    
-**Explainability Methods**
-- **Integrated Gradients (IG)**
-- **SHAP**
+To determine whether explanation drift can act as a reliable and dataset-agnostic signal of adversarial manipulation.
 
-**Core idea:** instead of detecting drift using predictions alone, we detect drift in **feature attributions** and evaluate separability using **ROC-AUC**.
+## Secondary Objective
 
----
+To evaluate the consistency and effectiveness of explainability methods when used together:
 
-## Research Questions
+Integrated Gradients (IG)
+SHAP
+Datasets
 
-**Primary Question**
-> Can explanation drift serve as a reliable and dataset-agnostic signal of adversarial manipulation?
+The project is designed to work with:
 
-**Secondary Question**
-> Which XAI method (IG or SHAP) provides more stable and discriminative drift signals?
+CICIDS2018 (network-based intrusion detection)
+BETH dataset (host-based security dataset)
+Methodology
+Pipeline
 
----
+Data flows through the following stages:
+**Data → Model → Attack → Explainability → Drift Measurement → ROC Evaluation**
 
-## High-Level Architecture
+### Core Idea
 
-**Pipeline Flow**
-Data → Model → Attack/Shift → Explainability → Drift Metrics → ROC Evaluation
+The project computes drift between feature attributions before and after perturbation using:
 
-**Module Structure**
-- `src/data/loader.py` → Dataset loading (CICIDS2018 + BETH)
-- `src/models/mlp.py` → Neural network architecture and training
-- `src/attacks/fgsm.py`, `src/attacks/pgd.py` → Adversarial perturbations
-- `src/explain/ig.py` → Integrated Gradients
-- `src/explain/shap.py` → SHAP
-- `src/drift/metrics.py` → Cosine & Euclidean drift metrics
-- `src/eval/roc.py` → ROC-AUC evaluation
-- `src/pipeline/run_experiment.py` → Experiment orchestrator
+Cosine distance
+Euclidean distance
 
-All experiment logic must live in `src/`.  
-Notebooks are for reference only.
+Both Integrated Gradients and SHAP are applied in every experiment, and their attribution outputs are used jointly for drift analysis.
 
----
+**Adversarial settings supported:**
 
-## Repository Contract
 
-This repository is intentionally scaffolded.
+FGSM only
+PGD only
+Combined FGSM and PGD
+### Project Structure
 
-The student team must implement the required modules so that the following command runs successfully:
+**The repository is organized into modular components covering:**
 
-`python3 -m src.pipeline.run_experiment --config configs/experiment.yaml`
+Data loading and preprocessing
+Model training
+Adversarial attack generation
+Explainability (IG and SHAP)
+Drift computation
+Evaluation using ROC-AUC
+End-to-end experiment pipeline
 
-**The configuration must allow switching between:**
-- Dataset: cicids2018 or beth
-- XAI method: ig or shap
-- Attack type: none, fgsm, or pgd
+All implementation logic resides in the src directory. Notebooks are for reference only.
 
-No notebook code should be required for a full experiment run.
+Running the Project
 
-⸻
+Experiments are executed through a unified pipeline.
 
-## Setup
+Configuration supports:
 
-`python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt`
+**Dataset selection (CICIDS2018 or BETH)**
+Attack setting:
+none
+fgsm
+pgd
+both
 
-**Required libraries include:**
-- torch
-- captum
-- shap
-- numpy
-- pandas
-- scikit-learn
-- matplotlib
-- pyyaml
+Both IG and SHAP are always executed as part of the pipeline.
 
-⸻
+Data Setup
 
-## Data Requirements
+Datasets are not included in this repository.
 
-This repository does **NOT** include datasets.
+CICIDS2018 data should be placed in: data/cicids2018/
+BETH data should be placed in: data/beth/
+Loader Requirements
 
-**CICIDS2018**
+**The data loader:**
 
-Place CSV files in:
+Converts labels to binary (Benign = 0, Attack = 1)
+Uses numeric features only
+Handles missing and infinite values
+Performs stratified train/test split
+Applies standard scaling (fit on training data only)
+Outputs
 
-`data/cicids2018/`
+**Each experiment run generates a results directory containing:**
 
-**BETH**
+Configuration snapshot
+Metrics summary
+ROC plots for:
+Cosine drift
+Euclidean drift
+Metrics
 
-Place BETH dataset files in:
+**The evaluation includes:**
 
-`data/beth/`
+ROC-AUC for cosine drift
+ROC-AUC for Euclidean drift
+Mean cosine drift
+Mean Euclidean drift
+Definition of Done
 
-The loader must:
-- Support dataset selection via config
-- Convert labels to binary (Benign → 0, Attack → 1)
-- Use numeric features only
-- Handle NaN / Inf values
-- Perform stratified train/test split
-- Apply StandardScaler (fit on train, transform test)
+**A complete implementation must:**
 
-Loader must be dataset-agnostic.
+Run without errors
+Work for both datasets
+Execute IG and SHAP in every run
+Support all attack configurations
+Generate required outputs and ROC curves
+Be reproducible using a fixed random seed
+Limitations
+The pipeline does not support the Hulk subset of the CICIDS2018 dataset due to its large size and memory constraints.
+Reproducibility
 
-⸻
+All experiments are deterministic and controlled by a fixed seed defined in the configuration.
 
-## Definition of Done
+**Contribution Guidelines**
+Use feature branches for development
+Submit pull requests linked to tasks
+Ensure the full pipeline runs locally before submission
+Keep production code within the src directory
+Do not include notebook logic in core modules
+Research Context
 
-A successful experiment run MUST:
-1. Execute without import or runtime errors.
-2. Work for all combinations:
-   - CICIDS2018 + IG
-   - CICIDS2018 + SHAP
-   - BETH + IG
-   - BETH + SHAP
-3. Create:
+Adversarial manipulation can alter model decisions without obvious statistical changes in input data.
 
-`results/logs/<run_id>/`
+**This project evaluates whether explanation drift:**
 
-4. Save:
-   - config_snapshot.yaml
-   - metrics_summary.json
-5. Save ROC plots for:
-   - Cosine drift
-   - Euclidean drift
-6. Be reproducible with fixed seed.
-
-⸻
-
-## Output Schema
-
-`metrics_summary.json` must contain:
-
-`{
-  "dataset": "cicids2018 | beth",
-  "xai_method": "ig | shap",
-  "attack_type": "none | fgsm | pgd",
-  "auc_cosine": float,
-  "auc_euclidean": float,
-  "mean_cosine_drift": float,
-  "mean_euclidean_drift": float
-}`
-
-Any deviation from this schema is considered incomplete.
-
-⸻
-
-## Contribution Guidelines
-- Create a feature branch per issue.
-- Open Pull Request referencing the issue.
-- PR must pass full experiment run locally.
-- No notebook logic inside production modules.
-- Code must be deterministic using cfg.run.seed.
-
-⸻
-
-## Research Context
-
-Adversarial manipulation can alter model decisions without obvious statistical changes.
-
-This project evaluates whether explanation drift:
-	•	Detects adversarial manipulation,
-	•	Generalizes across datasets,
-	•	Remains stable across XAI methods.
-
-This repository supports MSc-level research experimentation and comparative evaluation.
-
+Detects adversarial manipulation
+Generalizes across datasets
+Remains consistent when combining multiple explainability methods
+Notes
+All core logic must reside in the src directory
+Notebooks are for experimentation only
+The pipeline must run end-to-end without manual intervention
