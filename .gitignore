@@ -1,15 +1,14 @@
-.venv/
+# Datasets (DO NOT TRACK)
+CIS/
+configs/Beth/
+
+# Model checkpoints
+best_model.pt
+*.pt
+
+# System / cache
 __pycache__/
 *.pyc
-.DS_Store
 
-# data should NOT be committed
-data/cicids2018/*.csv
-
-# results are generated
-results/logs/*
-results/figures/*
-results/tables/*
-!results/logs/.gitkeep
-!results/figures/.gitkeep
-!results/tables/.gitkeep
+# BUT KEEP PLOTS (IMPORTANT)
+# we do NOT ignore png files
