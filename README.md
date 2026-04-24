@@ -66,7 +66,7 @@ Configuration supports:
 
 **Dataset selection (CICIDS2018 or BETH)**
 Attack setting:
-none
+
 fgsm
 pgd
 both
