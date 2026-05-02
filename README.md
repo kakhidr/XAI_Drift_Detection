@@ -160,9 +160,10 @@ XAI_Drift_Detection/
 │   │   └── run_experiment.py       # End-to-end orchestrator
 │   └── utils/
 │       └── timing.py               # Per-stage timing infrastructure
-├── notebooks/
-│   └── min_feasibility.ipynb       # Original feasibility notebook (reference only)
-├── main.py                         # Legacy monolithic script (reference only)
+├── legacy/
+│   ├── main.py                     # Original monolithic script (self-contained)
+│   └── notebooks/
+│       └── min_feasibility.ipynb   # Initial feasibility notebook (self-contained)
 ├── drift_plots/                    # Reference plots from early experiments
 ├── requirements.txt                # Python dependencies
 ├── .gitignore
@@ -173,7 +174,7 @@ XAI_Drift_Detection/
 
 ### Legacy Files
 
-The `main.py` script and `notebooks/min_feasibility.ipynb` notebook were the **initial feasibility trials** that shaped and informed the design of the modular pipeline. They contain early prototyping of the data loading, model training, adversarial attacks, and XAI attribution workflow — all in a single self-contained file.
+The `legacy/main.py` script and `legacy/notebooks/min_feasibility.ipynb` notebook were the **initial feasibility trials** that shaped and informed the design of the modular pipeline. They contain early prototyping of the data loading, model training, adversarial attacks, and XAI attribution workflow — all in a single self-contained file.
 
 These legacy files **can still be run independently** — each is fully self-contained with its own imports, data processing, and execution logic. They do not depend on the `src/` modules. This makes them useful for:
 
@@ -183,7 +184,7 @@ These legacy files **can still be run independently** — each is fully self-con
 
 To run the legacy script directly:
 ```bash
-python main.py
+python legacy/main.py
 ```
 It will prompt you interactively for dataset, attack type, and other settings via the terminal.
 
