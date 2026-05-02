@@ -1,10 +1,14 @@
 # Datasets (DO NOT TRACK)
 CIS/
 configs/Beth/
+data/
 
 # Model checkpoints
 best_model.pt
 *.pt
+
+# Pipeline output
+results/
 
 # System / cache
 __pycache__/

@@ -6,6 +6,57 @@ This project investigates whether drift in model explanations can be used to det
 
 Rather than relying only on model predictions, the approach analyzes changes in feature attributions and evaluates their effectiveness using ROC-AUC metrics.
 
+---
+
+### 🚀 Quick Start — Web Interface
+
+#### 1. Clone & Install
+
+```bash
+git clone https://github.com/kakhidr/XAI_Drift_Detection.git
+cd XAI_Drift_Detection
+pip install -r requirements.txt
+```
+
+#### 2. Add Your Data
+
+Place datasets under the `data/` directory:
+
+```
+data/
+├── cicids2018/
+│   ├── DoS attacks-GoldenEye.csv
+│   └── ...other CICIDS2018 CSVs...
+└── beth/
+    └── beth.csv
+```
+
+> **Note:** The CICIDS2018 and BETH datasets are not included. Download them separately.
+
+#### 3. Launch the Web Interface
+
+```bash
+streamlit run app.py
+```
+
+This opens a browser UI where you can:
+
+1. **Select dataset** — CICIDS2018 or BETH
+2. **Pick CSV file** — from available files in the dataset folder
+3. **Choose attack** — FGSM, PGD, or Both
+4. **Choose XAI method** — Integrated Gradients, SHAP, or Both
+5. **Set sample size** — 500, 1000, or 3000 (impacts timing)
+6. **Click Run** — watch live progress through each pipeline stage
+
+The results page shows:
+- ⏱️ Timing breakdown for every stage
+- 📈 Training loss curves
+- 📉 ROC curves with AUC scores
+- 📊 Drift histograms (Cosine, Euclidean, KL)
+- 📥 Download button for all outputs as ZIP
+
+---
+
 ### Objectives
 Primary Objective
 
