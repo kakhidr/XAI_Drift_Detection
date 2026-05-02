@@ -171,6 +171,22 @@ XAI_Drift_Detection/
 
 > **Note:** `main.py` and `notebooks/` are retained for reference. All active logic lives in `src/` and is orchestrated by `app.py`.
 
+### Legacy Files
+
+The `main.py` script and `notebooks/min_feasibility.ipynb` notebook were the **initial feasibility trials** that shaped and informed the design of the modular pipeline. They contain early prototyping of the data loading, model training, adversarial attacks, and XAI attribution workflow — all in a single self-contained file.
+
+These legacy files **can still be run independently** — each is fully self-contained with its own imports, data processing, and execution logic. They do not depend on the `src/` modules. This makes them useful for:
+
+- **Quick standalone testing** without the Streamlit interface
+- **Understanding the original research process** and how the pipeline evolved
+- **Comparing** the monolithic approach with the modular architecture
+
+To run the legacy script directly:
+```bash
+python main.py
+```
+It will prompt you interactively for dataset, attack type, and other settings via the terminal.
+
 ---
 
 ## ⚙️ Technical Details
