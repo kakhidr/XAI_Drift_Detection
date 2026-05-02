@@ -1,4 +1,4 @@
-# Datasets (DO NOT TRACK)
+# Datasets (DO NOT TRACK — download separately)
 CIS/
 configs/Beth/
 data/
@@ -10,10 +10,22 @@ best_model.pt
 # Pipeline output
 results/
 
+# Old root-level plots (now generated in results/)
+roc_*.png
+
 # System / cache
 __pycache__/
 *.pyc
+.DS_Store
+Thumbs.db
 
-# BUT KEEP PLOTS (IMPORTANT)
-# we do NOT ignore png file
-# XAI Drift Detection.md
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# Keep drift_plots/ (reference plots from early experiments)
