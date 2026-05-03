@@ -129,7 +129,27 @@ All captions are **dynamically generated** based on your specific configuration 
 | **Quick test** | fgsm | ig | 500 | ~30 seconds, verify setup works |
 | **Balanced run** | both | both | 1000 | ~2–5 minutes, good coverage |
 | **Thesis figures** | both | both | 3000 | ~10+ minutes, most robust results |
-| **Epsilon sweep** | fgsm | ig | 1000 | Run multiple times with ε = 0.001, 0.01, 0.1, 0.3 |
+| **Epsilon sweep** | fgsm | ig | 1000 | Use built-in Epsilon Sweep mode (see below) |
+
+### Epsilon Sweep Mode
+
+The app includes a dedicated **Epsilon Sweep** mode for analysing how perturbation strength affects attribution drift and detection performance — a key analysis for dissertation results.
+
+**How to use:**
+1. Select **"Epsilon Sweep"** in the sidebar Run Mode toggle
+2. Choose the number of ε values (2–10) using the slider
+3. Edit individual ε values as needed (defaults: 0.001, 0.005, 0.01, 0.02, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3)
+4. Select your attack type, XAI method, and sample count as usual
+5. Click **Run Experiment**
+
+**What it produces:**
+- **Summary table** — all metrics for each ε value in one view
+- **Drift vs ε line plots** — cosine, euclidean, and KL divergence drift across ε values
+- **AUC vs ε subplots** — detection performance trends for each drift metric
+- **Flip rate vs ε plot** — attack success rate as perturbation strength increases
+- **Dynamic captions** — automated interpretation of trends, best/worst configurations, and sensitivity analysis
+
+The model is trained **once** and reused across all ε values, making sweeps significantly faster than running individual experiments.
 
 ---
 
