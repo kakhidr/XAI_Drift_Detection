@@ -236,3 +236,183 @@ def run_pipeline(cfg, csv_filename=None, attack_type="fgsm", xai_method="both",
         "history": history,
         "out_dir": out_dir,
     }
+
+
+def run_epsilon_sweep(cfg, csv_filename=None, attack_type="fgsm", xai_method="ig",
+                     eps_list=None, max_eval=500, status_cb=None, train_cb=None):
+    """
+    Run an epsilon sweep: train once, then loop over multiple ε values.
+
+    Returns dict with: sweep_results (list of dicts), figures, timing, history, out_dir
+    """
+    timer = StageTimer()
+
+    def status(msg):
+        if status_cb:
+            status_cb(msg)
+
+    if eps_list is None:
+        eps_list = [0.001, 0.005, 0.01, 0.02]
+
+    seed = int(cfg["run"]["seed"])
+    set_seed(seed)
+    device = torch.device("cuda" if cfg["run"].get("use_cuda", False) and torch.cuda.is_available() else "cpu")
+
+    run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + "_sweep"
+    out_dir = os.path.join(cfg["run"].get("output_dir", "results"), run_id)
+    os.makedirs(out_dir, exist_ok=True)
+
+    # --- 1. Data Loading ---
+    status("Loading dataset...")
+    timer.start("Data Loading")
+    X_train, X_test, y_train, y_test, scaler = load_dataset(cfg, csv_filename)
+    timer.stop()
+
+    # --- 2. Model Training (once) ---
+    status("Building and training model...")
+    timer.start("Model Training")
+    model = build_mlp(cfg, input_dim=X_train.shape[1])
+    model, history = train_model(model, X_train, y_train, cfg, progress_cb=train_cb)
+    model = model.to(device)
+    timer.stop()
+
+    # --- 3. Evaluation Subset (once) ---
+    status(f"Selecting {max_eval} evaluation samples...")
+    timer.start("Eval Subset Selection")
+    X_eval, y_eval = select_eval_subset(model, X_test, y_test, max_eval=max_eval, device=device)
+    timer.stop()
+
+    # Determine attacks and XAI methods
+    attacks_to_run = []
+    if attack_type in ("fgsm", "both"):
+        attacks_to_run.append("fgsm")
+    if attack_type in ("pgd", "both"):
+        attacks_to_run.append("pgd")
+
+    xai_methods = []
+    if xai_method in ("ig", "both"):
+        xai_methods.append("ig")
+    if xai_method in ("shap", "both"):
+        xai_methods.append("shap")
+
+    attack_cfg = cfg.get("attack", {})
+    base_alpha = float(attack_cfg.get("alpha", 0.005))
+    iters = int(attack_cfg.get("iters", 10))
+
+    ig_cfg = cfg.get("explain", {}).get("ig", {})
+    shap_cfg = cfg.get("explain", {}).get("shap", {})
+    X_bg = torch.tensor(X_train[:int(shap_cfg.get("background_size", 100))], dtype=torch.float32, device=device)
+
+    # --- 4. Pre-compute clean attributions (once per XAI method) ---
+    clean_attrs = {}
+    for method in xai_methods:
+        status(f"Computing clean {method.upper()} attributions...")
+        timer.start(f"Clean XAI ({method.upper()})")
+        if method == "ig":
+            clean_attrs["ig"] = compute_ig(model, X_eval, target=1,
+                                           batch_size=ig_cfg.get("batch_size", 64),
+                                           n_steps=ig_cfg.get("n_steps", 50))
+        else:
+            clean_attrs["shap"] = compute_shap(model, X_eval, X_bg,
+                                               batch_size=shap_cfg.get("batch_size", 64))
+        timer.stop()
+
+    # --- 5. Sweep over epsilons ---
+    sweep_results = []
+
+    for eps_idx, eps in enumerate(eps_list):
+        status(f"Epsilon sweep: ε={eps} ({eps_idx+1}/{len(eps_list)})")
+
+        for atk in attacks_to_run:
+            timer.start(f"Attack {atk.upper()} ε={eps}")
+            if atk == "fgsm":
+                X_adv = fgsm_attack(model, X_eval, y_eval, eps)
+            else:
+                pgd_alpha = eps / 4.0 if eps > base_alpha else base_alpha
+                X_adv = pgd_attack(model, X_eval, y_eval, eps, pgd_alpha, iters)
+            timer.stop()
+
+            # Preserved predictions
+            model.eval()
+            with torch.no_grad():
+                pred_clean = torch.argmax(model(X_eval), dim=1)
+                pred_adv = torch.argmax(model(X_adv), dim=1)
+            mask = pred_clean == pred_adv
+            n_preserved = mask.sum().item()
+            n_flipped = (~mask).sum().item()
+
+            if n_preserved == 0:
+                for method in xai_methods:
+                    sweep_results.append({
+                        "epsilon": eps, "attack": atk, "xai": method,
+                        "preserved_count": 0, "preserved_ratio": 0.0,
+                        "flip_count": n_flipped,
+                        "mean_cosine_drift": float("nan"),
+                        "mean_euclidean_drift": float("nan"),
+                        "mean_kl_drift": float("nan"),
+                        "auc_cosine": float("nan"),
+                        "auc_euclidean": float("nan"),
+                        "auc_kl": float("nan"),
+                    })
+                continue
+
+            X_c = X_eval[mask]
+            X_a = X_adv[mask]
+
+            for method in xai_methods:
+                label = f"{method.upper()}+{atk.upper()} ε={eps}"
+                status(f"XAI: {label}...")
+                timer.start(f"XAI {label}")
+                if method == "ig":
+                    attr_adv = compute_ig(model, X_a, target=1,
+                                          batch_size=ig_cfg.get("batch_size", 64),
+                                          n_steps=ig_cfg.get("n_steps", 50))
+                    attr_clean_f = clean_attrs["ig"][mask]
+                else:
+                    attr_adv = compute_shap(model, X_a, X_bg,
+                                            batch_size=shap_cfg.get("batch_size", 64))
+                    attr_clean_f = clean_attrs["shap"][mask]
+                timer.stop()
+
+                # Drift
+                cos_d = compute_cosine(attr_clean_f, attr_adv)
+                euc_d = compute_euclidean(attr_clean_f, attr_adv)
+                kl_d = compute_kl(attr_clean_f, attr_adv)
+
+                # ROC-AUC
+                from src.eval.roc import compute_roc
+                auc_cos, _, _ = compute_roc(cos_d, out_dir, name=f"sweep_{method}_{atk}_cos_eps{eps}")
+                auc_euc, _, _ = compute_roc(euc_d, out_dir, name=f"sweep_{method}_{atk}_euc_eps{eps}")
+                auc_kl, _, _ = compute_roc(kl_d, out_dir, name=f"sweep_{method}_{atk}_kl_eps{eps}")
+
+                sweep_results.append({
+                    "epsilon": eps,
+                    "attack": atk,
+                    "xai": method,
+                    "preserved_count": n_preserved,
+                    "preserved_ratio": n_preserved / len(y_eval),
+                    "flip_count": n_flipped,
+                    "mean_cosine_drift": float(np.mean(cos_d)),
+                    "mean_euclidean_drift": float(np.mean(euc_d)),
+                    "mean_kl_drift": float(np.mean(kl_d)),
+                    "auc_cosine": float(auc_cos),
+                    "auc_euclidean": float(auc_euc),
+                    "auc_kl": float(auc_kl),
+                })
+
+    # Save sweep results
+    import pandas as _pd
+    df_sweep = _pd.DataFrame(sweep_results)
+    df_sweep.to_csv(os.path.join(out_dir, "epsilon_sweep_results.csv"), index=False)
+
+    with open(os.path.join(out_dir, "metrics_sweep.json"), "w") as f:
+        json.dump(sweep_results, f, indent=4)
+
+    status("Epsilon sweep complete!")
+
+    return {
+        "sweep_results": sweep_results,
+        "timing": timer.summary(),
+        "history": history,
+        "out_dir": out_dir,
+    }
