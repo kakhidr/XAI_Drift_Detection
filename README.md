@@ -68,7 +68,7 @@ Datasets are **not included** in this repository. Download one or both:
 | **CICIDS 2018** | Network-based intrusion detection benchmark with labelled flows for DoS, DDoS, Brute Force, Infiltration, and more | [UNB CICIDS2018 Page](https://www.unb.ca/cic/datasets/ids-2018.html) — follow the AWS download links |
 | **BETH** | Real-world host-based intrusion detection data from honeypot systems | [Kaggle BETH Dataset](https://www.kaggle.com/datasets/katehighnam/beth-dataset) — requires free Kaggle account |
 
-After downloading, place the CSV files in the appropriate folders:
+After downloading, place the CSV files in the repository-level `data/` folder:
 
 ```
 data/
@@ -80,7 +80,7 @@ data/
     └── beth.csv (or any BETH CSV files)
 ```
 
-> **Tip:** You can also upload CSV files directly through the web interface — no need to place them manually.
+> **Tip:** You can also upload CSV files directly through the web interface — no need to place them manually. Do not place datasets under `src/data/`; that package contains loader code, while repository-level `data/` is ignored by git and used for local CSV inputs.
 
 ### 5. Launch the Web Interface
 
@@ -222,7 +222,7 @@ It will prompt you interactively for dataset, attack type, and other settings vi
 | 4 | **Adversarial Attack** | FGSM (single gradient step) and/or PGD (iterative projected gradient descent with ε-ball clipping) |
 | 5 | **XAI Attribution** | Integrated Gradients (via Captum) and/or SHAP DeepExplainer on clean + adversarial inputs |
 | 6 | **Drift Measurement** | Cosine similarity, Euclidean distance, KL divergence between clean and adversarial attribution vectors |
-| 7 | **ROC Evaluation** | Binary classification: clean samples (score=0) vs adversarial (score=drift distance), compute AUC |
+| 7 | **ROC Evaluation** | Binary classification: clean attribution-pair drift vs adversarial drift, with AUC, bootstrap confidence intervals, and threshold metrics |
 
 ### Drift Metrics
 
@@ -236,7 +236,27 @@ Only samples where the model's prediction **doesn't change** after attack ("pres
 
 ### Reproducibility
 
-All experiments use a fixed random seed (default: 42) for deterministic results across runs. The seed controls data splits, model initialisation, and evaluation sampling.
+All experiments use a fixed random seed (default: 42) for deterministic results across runs. The seed controls data splits, model initialisation, evaluation sampling, clean-baseline pairing, and bootstrap confidence intervals.
+
+Each run writes `run_metadata.json` and `metrics_schema.json` alongside the plots. These files record the resolved config, dataset filename, feature count, label distribution, split sizes, model accuracy, evaluation subset counts, device, package versions, attack settings, XAI settings, drift metrics, and baseline detector metrics.
+
+Each run also writes `experiment_summary.csv`, a flat thesis-ready table with one row per attack × XAI × drift metric. It includes AUC, bootstrap confidence intervals, clean/adversarial mean drift, flip rate, preserved sample count, model accuracy, and baseline detector AUCs.
+
+### Interpreting Strict Clean-Baseline AUC
+
+ROC-AUC is computed by comparing **adversarial attribution drift** against **clean-pair attribution drift**. This is deliberately stricter than comparing adversarial drift against zero. A low AUC does not necessarily mean the pipeline failed; it can mean the adversarial perturbation changed explanations less than normal variation between clean samples.
+
+For dissertation analysis, interpret AUC together with:
+
+- mean adversarial drift vs mean clean-pair drift
+- prediction flip rate
+- preserved-prediction sample count
+- bootstrap confidence intervals
+- prediction-confidence and raw-input baseline detectors
+
+### Configuration Warnings
+
+The Streamlit interface warns before and after runs when selected settings may produce weak, misleading, slow, or unstable results. Each warning includes a recommended adjustment so users know what to change. Examples include very small ε values, very large ε values, PGD step sizes larger than ε, low PGD iteration counts, SHAP with large sample sizes, CPU-heavy sweeps, low model accuracy, high flip rates, too few preserved samples, low strict-baseline AUC, or wide bootstrap confidence intervals.
 
 ---
 

@@ -7,27 +7,35 @@ from scipy.stats import entropy
 def _to_numpy_2d(arr):
     if hasattr(arr, "detach"):
         arr = arr.detach().cpu().numpy()
+    arr = np.asarray(arr, dtype=float)
+    if arr.ndim == 1:
+        return arr.reshape(1, -1)
     return arr.reshape(arr.shape[0], -1)
+
+
+def _paired_arrays(attr_clean, attr_adv):
+    A = _to_numpy_2d(attr_clean)
+    B = _to_numpy_2d(attr_adv)
+    if A.shape != B.shape:
+        raise ValueError(f"Attribution arrays must have matching shapes, got {A.shape} and {B.shape}.")
+    return A, B
 
 
 def compute_cosine(attr_clean, attr_adv) -> np.ndarray:
     """Per-sample cosine distance, shape [N]."""
-    A = _to_numpy_2d(attr_clean)
-    B = _to_numpy_2d(attr_adv)
+    A, B = _paired_arrays(attr_clean, attr_adv)
     return np.array([cosine_distances(A[i : i + 1], B[i : i + 1])[0, 0] for i in range(A.shape[0])])
 
 
 def compute_euclidean(attr_clean, attr_adv) -> np.ndarray:
     """Per-sample Euclidean distance, shape [N]."""
-    A = _to_numpy_2d(attr_clean)
-    B = _to_numpy_2d(attr_adv)
+    A, B = _paired_arrays(attr_clean, attr_adv)
     return np.linalg.norm(A - B, axis=1)
 
 
 def compute_kl(attr_clean, attr_adv, eps: float = 1e-10) -> np.ndarray:
     """Per-sample KL divergence (softmax normalised attributions), shape [N]."""
-    A = _to_numpy_2d(attr_clean)
-    B = _to_numpy_2d(attr_adv)
+    A, B = _paired_arrays(attr_clean, attr_adv)
     kl_vals = []
     for i in range(A.shape[0]):
         p = softmax(A[i]) + eps

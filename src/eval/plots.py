@@ -1,4 +1,12 @@
 import os
+import tempfile
+
+_CACHE_DIR = os.path.join(tempfile.gettempdir(), "xai_drift_cache")
+_MPL_DIR = os.path.join(tempfile.gettempdir(), "xai_drift_matplotlib")
+os.makedirs(_CACHE_DIR, exist_ok=True)
+os.makedirs(_MPL_DIR, exist_ok=True)
+os.environ.setdefault("XDG_CACHE_HOME", _CACHE_DIR)
+os.environ.setdefault("MPLCONFIGDIR", _MPL_DIR)
 
 import matplotlib
 matplotlib.use("Agg")
