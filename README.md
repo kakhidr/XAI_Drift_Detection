@@ -42,6 +42,7 @@ cd XAI_Drift_Detection
 ```bash
 # Linux / macOS
 python -m venv venv
+# If `python` is not found, try: python3 -m venv venv
 source venv/bin/activate
 
 # Windows
