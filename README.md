@@ -183,6 +183,8 @@ XAI_Drift_Detection/
 │       └── timing.py               # Per-stage timing infrastructure
 ├── legacy/
 │   ├── main.py                     # Original monolithic script (self-contained)
+│   ├── research_plots.py           # Publication-ready figure generator for dissertation
+│   ├── figures/                    # Generated dissertation figures (PNG + PDF)
 │   └── notebooks/
 │       └── min_feasibility.ipynb   # Initial feasibility notebook (self-contained)
 ├── drift_plots/                    # Reference plots from early experiments
@@ -208,6 +210,33 @@ To run the legacy script directly:
 python legacy/main.py
 ```
 It will prompt you interactively for dataset, attack type, and other settings via the terminal.
+
+### Research Plots (`legacy/research_plots.py`)
+
+A standalone script for generating publication-ready figures suitable for inclusion in the MSc dissertation. It produces space-efficient combined plots (2×2 grids) as well as individual figures, exported as both PNG (300 DPI) and PDF (vector).
+
+**Key figures generated:**
+- **Clean Explanation Stability vs Adversarial Drift** — overlaid histograms showing how attribution drift under FGSM/PGD compares to natural clean-pair variation (Cosine + Euclidean)
+- **Epsilon vs AUC** — detection performance scaling with perturbation strength
+- **Epsilon vs Mean Drift** — log-scale attribution shift growth
+- **IG vs SHAP comparison** — grouped bars comparing XAI method effectiveness
+- **AUC Heatmap** — compact summary of all configurations
+- **ROC Overlays** — multi-metric ROC curves per configuration
+- **Top-K Feature Attribution Shifts** — which features change most under attack
+
+**Usage:**
+```bash
+# Generate plots from existing sweep CSV (fast, no re-training):
+python legacy/research_plots.py
+
+# Re-run pipeline to generate raw score distributions + all plots:
+python legacy/research_plots.py --rerun --epsilon 0.01
+
+# Use cached scores for instant re-plotting:
+python legacy/research_plots.py
+```
+
+Output goes to `legacy/figures/` with both `.png` and `.pdf` versions of every figure.
 
 ---
 

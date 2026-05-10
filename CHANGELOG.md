@@ -7,6 +7,28 @@ All notable changes to the **XAI Drift Detection** project are documented in thi
 
 ---
 
+## [1.4.0] — 2026-05-10
+
+### Added
+- **Research Plots Generator** (`legacy/research_plots.py`) — standalone script for generating publication-ready figures from experiment results, designed for MSc dissertation inclusion
+  - Epsilon vs AUC line charts (Cosine + Euclidean combined)
+  - Epsilon vs Mean Drift log-scale plots
+  - IG vs SHAP grouped bar comparison
+  - AUC heatmap summary across all configurations
+  - Prediction flip rate vs perturbation strength
+  - **Clean Explanation Stability vs Adversarial Drift** distribution histograms for FGSM and PGD (both Cosine and Euclidean)
+  - Multi-metric ROC overlays per configuration
+  - Top-K feature attribution shift bar charts
+  - Space-saving combined 2×2 grid layouts for dissertation figures
+  - Individual standalone figures for flexible placement
+- Raw score caching (`raw_scores.npz`) — re-run pipeline once, regenerate plots instantly
+- All figures exported as both PNG (300 DPI) and PDF (vector) for thesis embedding
+
+### Removed
+- KL Divergence from research plots (not required for dissertation analysis)
+
+---
+
 ## [1.3.0] — 2026-05-06
 
 ### Added
