@@ -28,4 +28,7 @@ env/
 .vscode/
 .idea/
 
+# Regenerable cache
+legacy/figures/raw_scores.npz
+
 # Keep drift_plots/ (reference plots from early experiments)
