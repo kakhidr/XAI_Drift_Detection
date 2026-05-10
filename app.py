@@ -382,7 +382,7 @@ with `sus` (suspicious) and `evil` labels for binary classification.
 | **3. Eval Subset** | Balanced selection of correctly-classified benign + attack samples |
 | **4. Adversarial Attack** | FGSM (single gradient step) and/or PGD (iterative projected gradient) |
 | **5. XAI Attribution** | Integrated Gradients and/or SHAP DeepExplainer on clean & adversarial inputs |
-| **6. Drift Measurement** | Cosine similarity, Euclidean distance, KL divergence between attribution pairs |
+| **6. Drift Measurement** | Cosine similarity and Euclidean distance between attribution pairs |
 | **7. ROC Evaluation** | Clean-pair attribution drift vs adversarial drift, with AUC and quality checks |
 """)
     with col2:
@@ -545,8 +545,7 @@ if run_mode == "Epsilon Sweep":
     display_cols = ["epsilon", "attack", "xai", "preserved_count", "flip_count",
                     "mean_cosine_drift", "mean_clean_cosine_drift",
                     "mean_euclidean_drift", "mean_clean_euclidean_drift",
-                    "mean_kl_drift", "mean_clean_kl_drift",
-                    "auc_cosine", "auc_euclidean", "auc_kl"]
+                    "auc_cosine", "auc_euclidean"]
     avail_cols = [c for c in display_cols if c in sweep_df.columns]
     st.caption(
         "Each row shows the results for one ε × attack × XAI combination. "
@@ -588,26 +587,11 @@ if run_mode == "Epsilon Sweep":
     ax_euc.grid(True, alpha=0.3)
     plt.tight_layout()
 
-    # Mean KL Drift
-    fig_kl, ax_kl = plt.subplots(figsize=(8, 5))
-    for (atk, xai), grp in groups:
-        grp_sorted = grp.sort_values("epsilon")
-        ax_kl.plot(grp_sorted["epsilon"], grp_sorted["mean_kl_drift"],
-                   marker="^", linewidth=2, label=f"{xai.upper()} + {atk.upper()}")
-    ax_kl.set_xlabel("Epsilon (ε)", fontsize=12)
-    ax_kl.set_ylabel("Mean KL Divergence", fontsize=12)
-    ax_kl.set_title("Epsilon Sweep: Mean KL Attribution Drift", fontsize=13, fontweight="bold")
-    ax_kl.legend()
-    ax_kl.grid(True, alpha=0.3)
-    plt.tight_layout()
-
-    col_d1, col_d2, col_d3 = st.columns(3)
+    col_d1, col_d2 = st.columns(2)
     with col_d1:
         st.pyplot(fig_cos); plt.close(fig_cos)
     with col_d2:
         st.pyplot(fig_euc); plt.close(fig_euc)
-    with col_d3:
-        st.pyplot(fig_kl); plt.close(fig_kl)
 
     st.caption(
         "These plots show adversarial attribution drift as ε changes. Interpret them alongside the clean-drift "
@@ -618,8 +602,8 @@ if run_mode == "Epsilon Sweep":
     # --- AUC vs Epsilon Plot ---
     st.subheader("📉 Detection Performance (AUC) vs Epsilon")
 
-    fig_auc, axes_auc = plt.subplots(1, 3, figsize=(18, 5))
-    metric_labels = [("auc_cosine", "Cosine"), ("auc_euclidean", "Euclidean"), ("auc_kl", "KL Divergence")]
+    fig_auc, axes_auc = plt.subplots(1, 2, figsize=(12, 5))
+    metric_labels = [("auc_cosine", "Cosine"), ("auc_euclidean", "Euclidean")]
 
     for ax, (col, name) in zip(axes_auc, metric_labels):
         for (atk, xai), grp in groups:
@@ -639,10 +623,10 @@ if run_mode == "Epsilon Sweep":
     # Dynamic caption for AUC plot
     valid_rows = sweep_df.dropna(subset=["auc_cosine"])
     if len(valid_rows) > 0:
-        best_row = valid_rows.loc[valid_rows[["auc_cosine", "auc_euclidean", "auc_kl"]].max(axis=1).idxmax()]
-        worst_row = valid_rows.loc[valid_rows[["auc_cosine", "auc_euclidean", "auc_kl"]].max(axis=1).idxmin()]
-        best_auc = max(best_row["auc_cosine"], best_row["auc_euclidean"], best_row["auc_kl"])
-        worst_auc = max(worst_row["auc_cosine"], worst_row["auc_euclidean"], worst_row["auc_kl"])
+        best_row = valid_rows.loc[valid_rows[["auc_cosine", "auc_euclidean"]].max(axis=1).idxmax()]
+        worst_row = valid_rows.loc[valid_rows[["auc_cosine", "auc_euclidean"]].max(axis=1).idxmin()]
+        best_auc = max(best_row["auc_cosine"], best_row["auc_euclidean"])
+        worst_auc = max(worst_row["auc_cosine"], worst_row["auc_euclidean"])
 
         auc_caption = (
             f"**Best detection**: {best_row['xai'].upper()} + {best_row['attack'].upper()} "
@@ -653,8 +637,8 @@ if run_mode == "Epsilon Sweep":
 
         min_eps = valid_rows["epsilon"].min()
         max_eps = valid_rows["epsilon"].max()
-        low_eps_auc = valid_rows[valid_rows["epsilon"] == min_eps][["auc_cosine", "auc_euclidean", "auc_kl"]].max().max()
-        high_eps_auc = valid_rows[valid_rows["epsilon"] == max_eps][["auc_cosine", "auc_euclidean", "auc_kl"]].max().max()
+        low_eps_auc = valid_rows[valid_rows["epsilon"] == min_eps][["auc_cosine", "auc_euclidean"]].max().max()
+        high_eps_auc = valid_rows[valid_rows["epsilon"] == max_eps][["auc_cosine", "auc_euclidean"]].max().max()
 
         if high_eps_auc > low_eps_auc + 0.1:
             auc_caption += (
@@ -952,7 +936,7 @@ metrics = results["metrics"]
 # Build dynamic overview
 all_aucs = []
 for key, vals in metrics.items():
-    for m in ("auc_cosine", "auc_euclidean", "auc_kl"):
+    for m in ("auc_cosine", "auc_euclidean"):
         if pd.notna(vals[m]):
             all_aucs.append((key, m.replace("auc_", ""), vals[m]))
 
@@ -1021,7 +1005,6 @@ for key, vals in metrics.items():
     best_metric = max(
         ("Cosine", vals["auc_cosine"]),
         ("Euclidean", vals["auc_euclidean"]),
-        ("KL", vals["auc_kl"]),
         key=lambda x: x[1],
     )
 
@@ -1032,7 +1015,7 @@ for key, vals in metrics.items():
 
     with st.expander(
         f"**{key.upper()}**  —  AUC Cos: {vals['auc_cosine']:.4f}  |  "
-        f"AUC Euc: {vals['auc_euclidean']:.4f}  |  AUC KL: {vals['auc_kl']:.4f}"
+        f"AUC Euc: {vals['auc_euclidean']:.4f}"
     ):
         # Per-config dynamic caption
         config_notes = []
@@ -1079,10 +1062,9 @@ for key, vals in metrics.items():
 
         st.caption("".join(config_notes))
 
-        col_m1, col_m2, col_m3 = st.columns(3)
+        col_m1, col_m2 = st.columns(2)
         col_m1.metric("AUC Cosine", f"{vals['auc_cosine']:.4f}")
         col_m2.metric("AUC Euclidean", f"{vals['auc_euclidean']:.4f}")
-        col_m3.metric("AUC KL", f"{vals['auc_kl']:.4f}")
 
         col_m4, col_m5 = st.columns(2)
         col_m4.metric("Preserved Samples", vals["n_preserved"])

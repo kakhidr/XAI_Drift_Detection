@@ -7,6 +7,13 @@ All notable changes to the **XAI Drift Detection** project are documented in thi
 
 ---
 
+## [1.4.1] — 2026-05-10
+
+### Removed
+- KL Divergence from pipeline (`run_experiment.py`) and Streamlit app — only Cosine and Euclidean drift metrics are now computed, plotted, and reported
+
+---
+
 ## [1.4.0] — 2026-05-10
 
 ### Added

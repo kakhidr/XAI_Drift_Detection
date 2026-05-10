@@ -19,7 +19,7 @@ from src.data.loader import load_dataset
 from src.models.mlp import build_mlp, train_model
 from src.explain.ig import compute_ig
 from src.explain.shap_explainer import compute_shap
-from src.drift.metrics import compute_cosine, compute_euclidean, compute_kl
+from src.drift.metrics import compute_cosine, compute_euclidean
 from src.eval.roc import compute_roc
 from src.eval.plots import plot_drift_histogram
 from src.attacks.fgsm import fgsm_attack
@@ -333,7 +333,7 @@ def write_experiment_summary(out_dir, run_metadata, metrics_schema, legacy_metri
         input_baseline = baselines.get("input_l2_norm") or {}
         random_null = metrics_by_name.get("random_attribution_null") or {}
 
-        for metric_name in ("cosine", "euclidean", "kl"):
+        for metric_name in ("cosine", "euclidean"):
             details = metrics_by_name.get(metric_name)
             if not isinstance(details, dict):
                 continue
@@ -524,13 +524,10 @@ def run_pipeline(cfg, csv_filename=None, attack_type="fgsm", xai_method="both",
                 all_metrics[key] = {
                     "auc_cosine": float("nan"),
                     "auc_euclidean": float("nan"),
-                    "auc_kl": float("nan"),
                     "mean_cosine": float("nan"),
                     "mean_clean_cosine": float("nan"),
                     "mean_euclidean": float("nan"),
                     "mean_clean_euclidean": float("nan"),
-                    "mean_kl": float("nan"),
-                    "mean_clean_kl": float("nan"),
                     "n_preserved": 0,
                     "n_flipped": pdata["n_flipped"],
                 }
@@ -576,12 +573,8 @@ def run_pipeline(cfg, csv_filename=None, attack_type="fgsm", xai_method="both",
             euc_result = _compute_detection(
                 compute_euclidean, attr_clean, attr_adv, y_c, out_dir, f"{method}_{atk}_euc", seed
             )
-            kl_result = _compute_detection(
-                compute_kl, attr_clean, attr_adv, y_c, out_dir, f"{method}_{atk}_kl", seed
-            )
             cos_d = cos_result["adversarial_scores"]
             euc_d = euc_result["adversarial_scores"]
-            kl_d = kl_result["adversarial_scores"]
             timer.stop()
 
             # Histograms
@@ -592,9 +585,6 @@ def run_pipeline(cfg, csv_filename=None, attack_type="fgsm", xai_method="both",
             _, _ = plot_drift_histogram(euc_d, f"{label} Euclidean Drift", out_dir,
                                         f"hist_{method}_{atk}_euc.png", epsilon=epsilon,
                                         info="Euclidean: magnitude change")
-            _, _ = plot_drift_histogram(kl_d, f"{label} KL Drift", out_dir,
-                                        f"hist_{method}_{atk}_kl.png", epsilon=epsilon,
-                                        info="KL: distribution shift")
             timer.stop()
 
             key = f"{method}_{atk}"
@@ -613,13 +603,11 @@ def run_pipeline(cfg, csv_filename=None, attack_type="fgsm", xai_method="both",
             drift_detection_metrics[key] = {
                 "cosine": cos_result["details"],
                 "euclidean": euc_result["details"],
-                "kl": kl_result["details"],
                 "random_attribution_null": random_null["details"],
             }
             all_metrics[key] = {
                 "auc_cosine": float(cos_result["auc"]),
                 "auc_euclidean": float(euc_result["auc"]),
-                "auc_kl": float(kl_result["auc"]),
                 "auc_cosine_ci_low": (
                     None if cos_result["details"]["auc_ci_95"] is None
                     else float(cos_result["details"]["auc_ci_95"]["low"])
@@ -632,14 +620,11 @@ def run_pipeline(cfg, csv_filename=None, attack_type="fgsm", xai_method="both",
                 "mean_clean_cosine": float(np.mean(cos_result["clean_scores"])),
                 "mean_euclidean": float(np.mean(euc_d)),
                 "mean_clean_euclidean": float(np.mean(euc_result["clean_scores"])),
-                "mean_kl": float(np.mean(kl_d)),
-                "mean_clean_kl": float(np.mean(kl_result["clean_scores"])),
                 "n_preserved": pdata["n_preserved"],
                 "n_flipped": pdata["n_flipped"],
             }
             all_figures[f"{key}_roc_cos"] = cos_result["figure"]
             all_figures[f"{key}_roc_euc"] = euc_result["figure"]
-            all_figures[f"{key}_roc_kl"] = kl_result["figure"]
 
     # Save metrics
     run_metadata = _run_metadata(
@@ -809,10 +794,8 @@ def run_epsilon_sweep(cfg, csv_filename=None, attack_type="fgsm", xai_method="ig
                         "flip_count": n_flipped,
                         "mean_cosine_drift": float("nan"),
                         "mean_euclidean_drift": float("nan"),
-                        "mean_kl_drift": float("nan"),
                         "auc_cosine": float("nan"),
                         "auc_euclidean": float("nan"),
-                        "auc_kl": float("nan"),
                     })
                 continue
 
@@ -854,13 +837,8 @@ def run_epsilon_sweep(cfg, csv_filename=None, attack_type="fgsm", xai_method="ig
                     compute_euclidean, attr_clean_f, attr_adv, y_c, out_dir,
                     f"sweep_{method}_{atk}_euc_eps{eps}", seed
                 )
-                kl_result = _compute_detection(
-                    compute_kl, attr_clean_f, attr_adv, y_c, out_dir,
-                    f"sweep_{method}_{atk}_kl_eps{eps}", seed
-                )
                 cos_d = cos_result["adversarial_scores"]
                 euc_d = euc_result["adversarial_scores"]
-                kl_d = kl_result["adversarial_scores"]
                 rng = np.random.default_rng(seed)
                 rand_clean = rng.normal(size=np.asarray(attr_clean_f).shape)
                 rand_adv = rng.normal(size=np.asarray(attr_adv).shape)
@@ -877,7 +855,6 @@ def run_epsilon_sweep(cfg, csv_filename=None, attack_type="fgsm", xai_method="ig
                 drift_detection_metrics[drift_key] = {
                     "cosine": cos_result["details"],
                     "euclidean": euc_result["details"],
-                    "kl": kl_result["details"],
                     "random_attribution_null": random_null["details"],
                 }
 
@@ -892,11 +869,8 @@ def run_epsilon_sweep(cfg, csv_filename=None, attack_type="fgsm", xai_method="ig
                     "mean_clean_cosine_drift": float(np.mean(cos_result["clean_scores"])),
                     "mean_euclidean_drift": float(np.mean(euc_d)),
                     "mean_clean_euclidean_drift": float(np.mean(euc_result["clean_scores"])),
-                    "mean_kl_drift": float(np.mean(kl_d)),
-                    "mean_clean_kl_drift": float(np.mean(kl_result["clean_scores"])),
                     "auc_cosine": float(cos_result["auc"]),
                     "auc_euclidean": float(euc_result["auc"]),
-                    "auc_kl": float(kl_result["auc"]),
                 })
 
     # Save sweep results
