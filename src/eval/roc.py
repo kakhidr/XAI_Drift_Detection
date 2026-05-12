@@ -14,6 +14,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import roc_curve, auc
 
+from src.eval.plot_style import configure_plot_style, style_axis
+
+
+configure_plot_style()
+
 
 def _as_1d(scores):
     arr = np.asarray(scores, dtype=float).reshape(-1)
@@ -93,17 +98,18 @@ def compute_roc(drift_scores, out_dir: str, name: str = "metric", clean_scores=N
     ci = _bootstrap_auc(y_labels, scores, n_bootstrap=n_bootstrap, seed=seed)
     thresholds = _threshold_metrics(clean_scores, adv_scores)
 
-    fig, ax = plt.subplots(figsize=(8, 8))
-    ax.plot(fpr, tpr, color="blue", lw=2, label=f"ROC (AUC = {roc_auc:.4f})")
-    ax.plot([0, 1], [0, 1], color="gray", lw=1, linestyle="--")
+    fig, ax = plt.subplots(figsize=(8.5, 8.5))
+    ax.plot(fpr, tpr, color="blue", lw=3, label=f"ROC (AUC = {roc_auc:.4f})")
+    ax.plot([0, 1], [0, 1], color="gray", lw=1.5, linestyle="--")
     ax.set_xlabel("False Positive Rate")
     ax.set_ylabel("True Positive Rate")
     ax.set_title(f"ROC — {name}")
     ax.legend(loc="lower right")
+    style_axis(ax)
     fig.tight_layout()
 
     path = os.path.join(out_dir, f"roc_{name}.png")
-    fig.savefig(path, dpi=150)
+    fig.savefig(path)
     plt.close(fig)
 
     details = {

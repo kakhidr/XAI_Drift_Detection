@@ -35,20 +35,22 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
-import seaborn as sns
 
 # Add project root to path so we can import src.*
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
+from src.eval.plot_style import style_axis
+
 # ── Style defaults ───────────────────────────────────────────────────
 STYLE = {
-    "font.size": 11,
-    "axes.titlesize": 13,
-    "axes.labelsize": 12,
-    "xtick.labelsize": 10,
-    "ytick.labelsize": 10,
-    "legend.fontsize": 10,
+    "font.size": 15,
+    "axes.titlesize": 18,
+    "axes.labelsize": 16,
+    "xtick.labelsize": 14,
+    "ytick.labelsize": 14,
+    "legend.fontsize": 13,
+    "legend.title_fontsize": 13,
     "figure.dpi": 150,
     "savefig.dpi": 300,
     "savefig.bbox": "tight",
@@ -71,6 +73,8 @@ METRIC_LABELS = {"cosine": "Cosine Distance", "euclidean": "Euclidean Distance"}
 
 def _save(fig, out_dir, name):
     """Save figure as both PNG and PDF."""
+    for ax in fig.axes:
+        style_axis(ax)
     for ext in ("png", "pdf"):
         path = os.path.join(out_dir, f"{name}.{ext}")
         fig.savefig(path)
@@ -83,7 +87,7 @@ def _save(fig, out_dir, name):
 # ══════════════════════════════════════════════════════════════════════
 def plot_epsilon_vs_auc(df, out_dir):
     """Line chart: detection AUC vs epsilon for both metrics in one figure."""
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), sharey=True)
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6), sharey=True)
 
     for i, metric in enumerate(METRICS):
         ax = axes[i]
@@ -91,15 +95,15 @@ def plot_epsilon_vs_auc(df, out_dir):
         for (xai, attack), grp in df.groupby(["xai", "attack"]):
             grp_s = grp.sort_values("epsilon")
             label = f"{xai.upper()} + {attack.upper()}"
-            ax.plot(grp_s["epsilon"], grp_s[col], "o-", label=label, linewidth=2, markersize=5)
+            ax.plot(grp_s["epsilon"], grp_s[col], "o-", label=label, linewidth=2.5, markersize=7)
         ax.set_xlabel("Perturbation Strength (ε)")
         ax.set_ylabel("AUC" if i == 0 else "")
         ax.set_title(METRIC_LABELS[metric])
         ax.set_ylim(-0.05, 1.1)
-        ax.legend(fontsize=8)
+        ax.legend()
         ax.grid(axis="y", alpha=0.3)
 
-    fig.suptitle("Detection AUC vs Perturbation Strength", fontsize=14, y=1.02)
+    fig.suptitle("Detection AUC vs Perturbation Strength", fontsize=18, fontweight="bold", y=1.02)
     fig.tight_layout()
     _save(fig, out_dir, "fig_epsilon_vs_auc")
 
@@ -109,7 +113,7 @@ def plot_epsilon_vs_auc(df, out_dir):
 # ══════════════════════════════════════════════════════════════════════
 def plot_epsilon_vs_drift(df, out_dir):
     """Log-scale drift magnitude vs epsilon — Cosine & Euclidean combined."""
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
     for i, metric in enumerate(METRICS):
         ax = axes[i]
@@ -118,15 +122,15 @@ def plot_epsilon_vs_drift(df, out_dir):
             grp_s = grp.sort_values("epsilon")
             vals = grp_s[col].abs()
             label = f"{xai.upper()} + {attack.upper()}"
-            ax.plot(grp_s["epsilon"], vals, "s-", label=label, linewidth=2, markersize=5)
+            ax.plot(grp_s["epsilon"], vals, "s-", label=label, linewidth=2.5, markersize=7)
         ax.set_xlabel("Perturbation Strength (ε)")
         ax.set_ylabel(f"Mean {METRIC_LABELS[metric]}" if i == 0 else "")
         ax.set_title(METRIC_LABELS[metric])
         ax.set_yscale("log")
-        ax.legend(fontsize=8)
+        ax.legend()
         ax.grid(axis="y", alpha=0.3)
 
-    fig.suptitle("Mean Attribution Drift vs Perturbation Strength", fontsize=14, y=1.02)
+    fig.suptitle("Mean Attribution Drift vs Perturbation Strength", fontsize=18, fontweight="bold", y=1.02)
     fig.tight_layout()
     _save(fig, out_dir, "fig_epsilon_vs_drift")
 
@@ -139,7 +143,7 @@ def plot_xai_comparison_bars(df, out_dir):
     attack = "fgsm" if "fgsm" in df["attack"].values else df["attack"].iloc[0]
     sub = df[df["attack"] == attack].copy()
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), sharey=True)
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6), sharey=True)
 
     for i, metric in enumerate(METRICS):
         ax = axes[i]
@@ -154,7 +158,7 @@ def plot_xai_comparison_bars(df, out_dir):
         ax.set_xticklabels([f"{v:.3f}" for v in pivot.index], rotation=45)
         ax.grid(axis="y", alpha=0.3)
 
-    fig.suptitle(f"IG vs SHAP Detection Performance ({attack.upper()})", fontsize=14, y=1.02)
+    fig.suptitle(f"IG vs SHAP Detection Performance ({attack.upper()})", fontsize=18, fontweight="bold", y=1.02)
     fig.tight_layout()
     _save(fig, out_dir, "fig_xai_comparison_bars")
 
@@ -177,10 +181,26 @@ def plot_auc_heatmap(df, out_dir):
             })
     heat = pd.DataFrame(rows).pivot(index="Config", columns="ε", values="AUC")
 
-    fig, ax = plt.subplots(figsize=(10, 3.5))
-    sns.heatmap(heat, annot=True, fmt=".3f", cmap="YlGnBu", vmin=0.4, vmax=1.0,
-                linewidths=0.5, ax=ax, cbar_kws={"label": "AUC"})
-    ax.set_title(f"Detection AUC Summary ({attack.upper()})", fontsize=13)
+    fig, ax = plt.subplots(figsize=(12, 5))
+    values = heat.to_numpy(dtype=float)
+    masked_values = np.ma.masked_invalid(values)
+    im = ax.imshow(masked_values, cmap="YlGnBu", vmin=0.4, vmax=1.0, aspect="auto")
+    cbar = fig.colorbar(im, ax=ax)
+    cbar.set_label("AUC")
+    ax.set_xticks(np.arange(len(heat.columns)))
+    ax.set_yticks(np.arange(len(heat.index)))
+    ax.set_xticklabels([f"{v:g}" for v in heat.columns])
+    ax.set_yticklabels(heat.index)
+    ax.set_xticks(np.arange(values.shape[1] + 1) - 0.5, minor=True)
+    ax.set_yticks(np.arange(values.shape[0] + 1) - 0.5, minor=True)
+    ax.grid(which="minor", color="white", linewidth=0.8)
+    ax.tick_params(which="minor", bottom=False, left=False)
+    for row in range(values.shape[0]):
+        for col in range(values.shape[1]):
+            val = values[row, col]
+            if np.isfinite(val):
+                ax.text(col, row, f"{val:.3f}", ha="center", va="center", fontsize=13)
+    ax.set_title(f"Detection AUC Summary ({attack.upper()})")
     ax.set_xlabel("Perturbation Strength (ε)")
     ax.set_ylabel("")
     fig.tight_layout()
@@ -192,12 +212,13 @@ def plot_auc_heatmap(df, out_dir):
 # ══════════════════════════════════════════════════════════════════════
 def plot_flip_rate(df, out_dir):
     """Shows how many predictions flip as epsilon increases."""
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=(10, 6))
     for (xai, attack), grp in df.groupby(["xai", "attack"]):
         grp_s = grp.sort_values("epsilon")
         total = grp_s["preserved_count"] + grp_s["flip_count"]
         flip_rate = grp_s["flip_count"] / total
-        ax.plot(grp_s["epsilon"], flip_rate, "o-", label=f"{xai.upper()} + {attack.upper()}", linewidth=2)
+        ax.plot(grp_s["epsilon"], flip_rate, "o-", label=f"{xai.upper()} + {attack.upper()}",
+                linewidth=2.5, markersize=7)
 
     ax.set_xlabel("Perturbation Strength (ε)")
     ax.set_ylabel("Prediction Flip Rate")
@@ -225,7 +246,7 @@ def plot_clean_vs_adversarial_combined(raw_scores, out_dir):
     attacks = ["fgsm", "pgd"]
 
     for xai in xai_methods:
-        fig, axes = plt.subplots(2, 2, figsize=(12, 8))
+        fig, axes = plt.subplots(2, 2, figsize=(15, 10))
 
         for row, atk in enumerate(attacks):
             if (xai, atk) not in raw_scores:
@@ -253,7 +274,7 @@ def plot_clean_vs_adversarial_combined(raw_scores, out_dir):
                 ax.set_ylabel("Frequency")
                 ax.legend(loc="upper right")
 
-        fig.suptitle(f"Attribution Drift Distributions — {xai.upper()}", fontsize=14, y=1.01)
+        fig.suptitle(f"Attribution Drift Distributions — {xai.upper()}", fontsize=18, fontweight="bold", y=1.01)
         fig.tight_layout()
         _save(fig, out_dir, f"fig_clean_vs_adv_combined_{xai}")
 
@@ -283,7 +304,7 @@ def plot_clean_vs_adversarial_individual(raw_scores, out_dir):
                 all_vals = np.concatenate([clean, adv])
                 bins = np.linspace(0, np.percentile(all_vals, 99.5), 40)
 
-                fig, ax = plt.subplots(figsize=(8, 5))
+                fig, ax = plt.subplots(figsize=(10, 6))
                 ax.hist(clean, bins=bins, alpha=0.7, color=COLOURS["clean"],
                         edgecolor="white", label="Clean vs Clean")
                 ax.hist(adv, bins=bins, alpha=0.7, color=COLOURS[atk],
@@ -305,7 +326,7 @@ def plot_roc_overlay(raw_scores, out_dir):
     from sklearn.metrics import roc_curve, auc
 
     for (xai, atk), scores in raw_scores.items():
-        fig, ax = plt.subplots(figsize=(7, 7))
+        fig, ax = plt.subplots(figsize=(8.5, 8.5))
 
         colours = {"cosine": "#2A9D8F", "euclidean": "#E76F51"}
         for metric in METRICS:
@@ -315,10 +336,10 @@ def plot_roc_overlay(raw_scores, out_dir):
             all_scores = np.concatenate([clean, adv])
             fpr, tpr, _ = roc_curve(y_labels, all_scores)
             roc_auc = auc(fpr, tpr)
-            ax.plot(fpr, tpr, color=colours[metric], lw=2,
+            ax.plot(fpr, tpr, color=colours[metric], lw=3,
                     label=f"{METRIC_LABELS[metric]} (AUC = {roc_auc:.4f})")
 
-        ax.plot([0, 1], [0, 1], "k--", lw=1, alpha=0.5)
+        ax.plot([0, 1], [0, 1], "k--", lw=1.5, alpha=0.5)
         ax.set_xlabel("False Positive Rate")
         ax.set_ylabel("True Positive Rate")
         ax.set_title(f"ROC Comparison — {xai.upper()} + {atk.upper()}")
@@ -341,7 +362,7 @@ def plot_roc_combined(raw_scores, out_dir):
     attacks = ["fgsm", "pgd"]
     colours = {"cosine": "#2A9D8F", "euclidean": "#E76F51"}
 
-    fig, axes = plt.subplots(len(xai_methods), len(attacks), figsize=(12, 10))
+    fig, axes = plt.subplots(len(xai_methods), len(attacks), figsize=(15, 11))
     if len(xai_methods) == 1:
         axes = axes.reshape(1, -1)
 
@@ -360,18 +381,18 @@ def plot_roc_combined(raw_scores, out_dir):
                 all_s = np.concatenate([clean, adv])
                 fpr, tpr, _ = roc_curve(y_labels, all_s)
                 roc_auc = auc(fpr, tpr)
-                ax.plot(fpr, tpr, color=colours[metric], lw=2,
+                ax.plot(fpr, tpr, color=colours[metric], lw=3,
                         label=f"{METRIC_LABELS[metric]} (AUC={roc_auc:.4f})")
 
-            ax.plot([0, 1], [0, 1], "k--", lw=1, alpha=0.5)
+            ax.plot([0, 1], [0, 1], "k--", lw=1.5, alpha=0.5)
             ax.set_title(f"{xai.upper()} + {atk.upper()}")
             ax.set_xlabel("FPR")
             ax.set_ylabel("TPR")
-            ax.legend(loc="lower right", fontsize=9)
+            ax.legend(loc="lower right")
             ax.set_xlim(-0.02, 1.02)
             ax.set_ylim(-0.02, 1.02)
 
-    fig.suptitle("ROC Curves — Drift-Based Adversarial Detection", fontsize=14, y=1.01)
+    fig.suptitle("ROC Curves — Drift-Based Adversarial Detection", fontsize=18, fontweight="bold", y=1.01)
     fig.tight_layout()
     _save(fig, out_dir, "fig_roc_combined")
 
@@ -384,7 +405,7 @@ def plot_topk_feature_shift(attribution_data, out_dir, k=15):
     xai_methods = sorted(set(key[0] for key in attribution_data.keys()))
     attacks = ["fgsm", "pgd"]
 
-    fig, axes = plt.subplots(len(xai_methods), len(attacks), figsize=(14, 5 * len(xai_methods)))
+    fig, axes = plt.subplots(len(xai_methods), len(attacks), figsize=(16, 6 * len(xai_methods)))
     if len(xai_methods) == 1:
         axes = axes.reshape(1, -1)
 
@@ -418,7 +439,7 @@ def plot_topk_feature_shift(attribution_data, out_dir, k=15):
             ax.set_title(f"{xai.upper()} + {atk.upper()}")
             ax.grid(axis="x", alpha=0.3)
 
-    fig.suptitle(f"Top-{k} Feature Attribution Shifts Under Attack", fontsize=14, y=1.01)
+    fig.suptitle(f"Top-{k} Feature Attribution Shifts Under Attack", fontsize=18, fontweight="bold", y=1.01)
     fig.tight_layout()
     _save(fig, out_dir, "fig_topk_shift_combined")
 

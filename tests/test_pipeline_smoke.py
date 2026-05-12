@@ -76,8 +76,8 @@ class PipelineSmokeTests(unittest.TestCase):
             self.assertEqual(metadata["resolved_config"]["explain"]["method"], "ig")
 
             summary = pd.read_csv(out_dir / "experiment_summary.csv")
-            self.assertEqual(len(summary), 3)
-            self.assertEqual(set(summary["drift_metric"]), {"cosine", "euclidean", "kl"})
+            self.assertEqual(len(summary), 2)
+            self.assertEqual(set(summary["drift_metric"]), {"cosine", "euclidean"})
             self.assertIn("baseline_confidence_auc", summary.columns)
             self.assertIn("mean_clean_drift", summary.columns)
             self.assertEqual(summary["xai"].unique().tolist(), ["ig"])

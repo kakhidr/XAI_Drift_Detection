@@ -22,7 +22,10 @@ import matplotlib.pyplot as plt
 sys.path.insert(0, os.path.dirname(__file__))
 
 from src.data.loader import list_csv_files
+from src.eval.plot_style import configure_plot_style, style_axis
 from src.pipeline.run_experiment import run_pipeline, run_epsilon_sweep
+
+configure_plot_style()
 
 
 def build_pre_run_alerts(run_mode, attack_type, xai_method, max_eval, epsilon,
@@ -533,11 +536,16 @@ if run_mode == "Epsilon Sweep":
     )
     col_h1, col_h2 = st.columns(2)
     with col_h1:
-        fig_tl, ax_tl = plt.subplots()
-        ax_tl.plot(hist_df["epoch"], hist_df["train_loss"], label="Train Loss")
-        ax_tl.plot(hist_df["epoch"], hist_df["val_loss"], label="Val Loss")
-        ax_tl.set_xlabel("Epoch"); ax_tl.set_ylabel("Loss"); ax_tl.legend()
+        fig_tl, ax_tl = plt.subplots(figsize=(8, 5))
+        ax_tl.plot(hist_df["epoch"], hist_df["train_loss"], linewidth=2.5, label="Train Loss")
+        ax_tl.plot(hist_df["epoch"], hist_df["val_loss"], linewidth=2.5, label="Val Loss")
+        ax_tl.set_xlabel("Epoch")
+        ax_tl.set_ylabel("Loss")
         ax_tl.set_title("Training & Validation Loss")
+        ax_tl.legend()
+        ax_tl.grid(True, alpha=0.3)
+        style_axis(ax_tl)
+        fig_tl.tight_layout()
         st.pyplot(fig_tl); plt.close(fig_tl)
 
     # --- Summary Table ---
@@ -562,30 +570,32 @@ if run_mode == "Epsilon Sweep":
     groups = sweep_df.groupby(["attack", "xai"])
 
     # Mean Cosine Drift
-    fig_cos, ax_cos = plt.subplots(figsize=(8, 5))
+    fig_cos, ax_cos = plt.subplots(figsize=(10, 6))
     for (atk, xai), grp in groups:
         grp_sorted = grp.sort_values("epsilon")
         ax_cos.plot(grp_sorted["epsilon"], grp_sorted["mean_cosine_drift"],
-                    marker="o", linewidth=2, label=f"{xai.upper()} + {atk.upper()}")
-    ax_cos.set_xlabel("Epsilon (ε)", fontsize=12)
-    ax_cos.set_ylabel("Mean Cosine Drift", fontsize=12)
-    ax_cos.set_title("Epsilon Sweep: Mean Cosine Attribution Drift", fontsize=13, fontweight="bold")
+                    marker="o", linewidth=2.5, markersize=7, label=f"{xai.upper()} + {atk.upper()}")
+    ax_cos.set_xlabel("Epsilon (ε)")
+    ax_cos.set_ylabel("Mean Cosine Drift")
+    ax_cos.set_title("Epsilon Sweep: Mean Cosine Attribution Drift")
     ax_cos.legend()
     ax_cos.grid(True, alpha=0.3)
-    plt.tight_layout()
+    style_axis(ax_cos)
+    fig_cos.tight_layout()
 
     # Mean Euclidean Drift
-    fig_euc, ax_euc = plt.subplots(figsize=(8, 5))
+    fig_euc, ax_euc = plt.subplots(figsize=(10, 6))
     for (atk, xai), grp in groups:
         grp_sorted = grp.sort_values("epsilon")
         ax_euc.plot(grp_sorted["epsilon"], grp_sorted["mean_euclidean_drift"],
-                    marker="s", linewidth=2, label=f"{xai.upper()} + {atk.upper()}")
-    ax_euc.set_xlabel("Epsilon (ε)", fontsize=12)
-    ax_euc.set_ylabel("Mean Euclidean Drift", fontsize=12)
-    ax_euc.set_title("Epsilon Sweep: Mean Euclidean Attribution Drift", fontsize=13, fontweight="bold")
+                    marker="s", linewidth=2.5, markersize=7, label=f"{xai.upper()} + {atk.upper()}")
+    ax_euc.set_xlabel("Epsilon (ε)")
+    ax_euc.set_ylabel("Mean Euclidean Drift")
+    ax_euc.set_title("Epsilon Sweep: Mean Euclidean Attribution Drift")
     ax_euc.legend()
     ax_euc.grid(True, alpha=0.3)
-    plt.tight_layout()
+    style_axis(ax_euc)
+    fig_euc.tight_layout()
 
     col_d1, col_d2 = st.columns(2)
     with col_d1:
@@ -602,22 +612,23 @@ if run_mode == "Epsilon Sweep":
     # --- AUC vs Epsilon Plot ---
     st.subheader("📉 Detection Performance (AUC) vs Epsilon")
 
-    fig_auc, axes_auc = plt.subplots(1, 2, figsize=(12, 5))
+    fig_auc, axes_auc = plt.subplots(1, 2, figsize=(14, 6))
     metric_labels = [("auc_cosine", "Cosine"), ("auc_euclidean", "Euclidean")]
 
     for ax, (col, name) in zip(axes_auc, metric_labels):
         for (atk, xai), grp in groups:
             grp_sorted = grp.sort_values("epsilon")
             ax.plot(grp_sorted["epsilon"], grp_sorted[col],
-                    marker="o", linewidth=2, label=f"{xai.upper()} + {atk.upper()}")
-        ax.set_xlabel("Epsilon (ε)", fontsize=11)
-        ax.set_ylabel("ROC-AUC", fontsize=11)
-        ax.set_title(f"{name} Drift Detection AUC", fontsize=12, fontweight="bold")
+                    marker="o", linewidth=2.5, markersize=7, label=f"{xai.upper()} + {atk.upper()}")
+        ax.set_xlabel("Epsilon (ε)")
+        ax.set_ylabel("ROC-AUC")
+        ax.set_title(f"{name} Drift Detection AUC")
         ax.set_ylim(0.0, 1.05)
         ax.axhline(y=0.5, color="gray", linestyle="--", alpha=0.5, label="Random")
-        ax.legend(fontsize=9)
+        ax.legend()
         ax.grid(True, alpha=0.3)
-    plt.tight_layout()
+        style_axis(ax)
+    fig_auc.tight_layout()
     st.pyplot(fig_auc); plt.close(fig_auc)
 
     # Dynamic caption for AUC plot
@@ -656,18 +667,19 @@ if run_mode == "Epsilon Sweep":
 
     # --- Flip Rate Plot ---
     st.subheader("🎯 Attack Success Rate vs Epsilon")
-    fig_flip, ax_flip = plt.subplots(figsize=(8, 5))
+    fig_flip, ax_flip = plt.subplots(figsize=(10, 6))
     for (atk, xai), grp in groups:
         grp_sorted = grp.sort_values("epsilon")
         flip_rate = grp_sorted["flip_count"] / (grp_sorted["preserved_count"] + grp_sorted["flip_count"]) * 100
         ax_flip.plot(grp_sorted["epsilon"], flip_rate,
-                     marker="o", linewidth=2, label=f"{xai.upper()} + {atk.upper()}")
-    ax_flip.set_xlabel("Epsilon (ε)", fontsize=12)
-    ax_flip.set_ylabel("Flip Rate (%)", fontsize=12)
-    ax_flip.set_title("Attack Success Rate vs Epsilon", fontsize=13, fontweight="bold")
+                     marker="o", linewidth=2.5, markersize=7, label=f"{xai.upper()} + {atk.upper()}")
+    ax_flip.set_xlabel("Epsilon (ε)")
+    ax_flip.set_ylabel("Flip Rate (%)")
+    ax_flip.set_title("Attack Success Rate vs Epsilon")
     ax_flip.legend()
     ax_flip.grid(True, alpha=0.3)
-    plt.tight_layout()
+    style_axis(ax_flip)
+    fig_flip.tight_layout()
     st.pyplot(fig_flip); plt.close(fig_flip)
     st.caption(
         "The flip rate shows what percentage of predictions changed class after the attack. "
@@ -917,13 +929,16 @@ st.caption("".join(train_notes))
 
 col_t1, col_t2 = st.columns(2)
 with col_t1:
-    fig_tl, ax_tl = plt.subplots()
-    ax_tl.plot(hist_df["epoch"], hist_df["train_loss"], label="Train Loss")
-    ax_tl.plot(hist_df["epoch"], hist_df["val_loss"], label="Val Loss")
+    fig_tl, ax_tl = plt.subplots(figsize=(8, 5))
+    ax_tl.plot(hist_df["epoch"], hist_df["train_loss"], linewidth=2.5, label="Train Loss")
+    ax_tl.plot(hist_df["epoch"], hist_df["val_loss"], linewidth=2.5, label="Val Loss")
     ax_tl.set_xlabel("Epoch")
     ax_tl.set_ylabel("Loss")
-    ax_tl.legend()
     ax_tl.set_title("Training & Validation Loss")
+    ax_tl.legend()
+    ax_tl.grid(True, alpha=0.3)
+    style_axis(ax_tl)
+    fig_tl.tight_layout()
     st.pyplot(fig_tl)
     plt.close(fig_tl)
 
