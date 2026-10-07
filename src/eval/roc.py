@@ -114,6 +114,8 @@ def compute_roc(drift_scores, out_dir: str, name: str = "metric", clean_scores=N
 
     details = {
         "auc": float(roc_auc),
+        "fpr": fpr.tolist(),
+        "tpr": tpr.tolist(),
         "auc_ci_95": ci,
         "threshold_metrics": thresholds,
         "n_clean": int(len(clean_scores)),
@@ -125,3 +127,63 @@ def compute_roc(drift_scores, out_dir: str, name: str = "metric", clean_scores=N
     if return_details:
         return roc_auc, fig, path, details
     return roc_auc, fig, path
+
+
+def plot_combined_xai_roc(results, out_dir, name="roc_combined_xai_drift"):
+    """Plot retained ROC coordinates, without recalculating scores or ROC values.
+
+    results maps configuration keys (e.g. ig_fgsm) to cosine/euclidean details.
+    Missing configurations are omitted, rather than inventing unavailable curves.
+    """
+    configurations = (
+        ("ig_fgsm", "IG + FGSM", "#0072B2", "-", "o", 3.2, 8),
+        ("ig_pgd", "IG + PGD", "#D55E00", "--", "s", 2.4, 6),
+        ("shap_fgsm", "SHAP + FGSM", "#009E73", "-.", "^", 1.7, 4),
+        ("shap_pgd", "SHAP + PGD", "#CC79A7", ":", "x", 1.1, 3),
+    )
+    # Local settings preserve the existing individual-plot style.
+    with plt.rc_context({
+        "font.size": 8, "axes.labelsize": 8, "axes.titlesize": 9,
+        "xtick.labelsize": 7, "ytick.labelsize": 7, "legend.fontsize": 7,
+        "axes.linewidth": 0.6, "axes.labelpad": 3, "axes.titlepad": 6,
+        "pdf.fonttype": 42, "ps.fonttype": 42,
+    }):
+        fig, axes = plt.subplots(1, 2, figsize=(7.16, 3.45))
+        for ax, metric, title in zip(
+            axes, ("cosine", "euclidean"),
+            ("(a) Cosine Distance", "(b) Euclidean Distance"),
+        ):
+            for key, label, color, linestyle, marker, width, size in configurations:
+                details = results.get(key, {}).get(metric)
+                if details is None:
+                    continue
+                # Broad lines first, then narrower dashed lines; nested hollow
+                # markers reveal coincident vertices without jittering ROC data.
+                count = len(details["fpr"])
+                marker_indices = np.unique(
+                    np.linspace(0, count - 1, min(count, 12), dtype=int)
+                ).tolist()
+                ax.plot(
+                    details["fpr"], details["tpr"],
+                    label=f"{label} (AUC = {details['auc']:.4f})",
+                    color=color, linestyle=linestyle, linewidth=width,
+                    marker=marker, markersize=size, markerfacecolor="none",
+                    markeredgewidth=0.8, markevery=marker_indices,
+                )
+            ax.plot([0, 1], [0, 1], color="0.55", linestyle="--",
+                    linewidth=0.7, zorder=0, label="Random classifier")
+            ax.set(xlabel="False Positive Rate", ylabel="True Positive Rate",
+                   title=title, xlim=(-0.025, 1.025), ylim=(-0.025, 1.025))
+            ax.set_aspect("equal", adjustable="box")
+            ax.set_xticks(np.linspace(0, 1, 6))
+            ax.set_yticks(np.linspace(0, 1, 6))
+            ax.tick_params(width=0.6, length=3)
+            ax.legend(loc="lower right", frameon=False, handlelength=3.4,
+                      labelspacing=0.6)
+        fig.tight_layout(pad=0.6, w_pad=1.6)
+        paths = {}
+        for extension in ("png", "pdf"):
+            paths[extension] = os.path.join(out_dir, f"{name}.{extension}")
+            fig.savefig(paths[extension], dpi=400, bbox_inches="tight")
+        plt.close(fig)
+    return fig, paths

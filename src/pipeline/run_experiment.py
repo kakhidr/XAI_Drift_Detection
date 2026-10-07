@@ -20,7 +20,7 @@ from src.models.mlp import build_mlp, train_model
 from src.explain.ig import compute_ig
 from src.explain.shap_explainer import compute_shap
 from src.drift.metrics import compute_cosine, compute_euclidean
-from src.eval.roc import compute_roc
+from src.eval.roc import compute_roc, plot_combined_xai_roc
 from src.eval.plots import plot_drift_histogram
 from src.attacks.fgsm import fgsm_attack
 from src.attacks.pgd import pgd_attack
@@ -649,6 +649,13 @@ def run_pipeline(cfg, csv_filename=None, attack_type="fgsm", xai_method="both",
             all_figures[f"{key}_roc_cos"] = cos_result["figure"]
             all_figures[f"{key}_roc_euc"] = euc_result["figure"]
 
+    combined_roc_paths = {}
+    if drift_detection_metrics:
+        combined_fig, combined_roc_paths = plot_combined_xai_roc(
+            drift_detection_metrics, out_dir
+        )
+        all_figures["combined_roc_xai_drift"] = combined_fig
+
     # Save metrics
     run_metadata = _run_metadata(
         cfg, csv_filename, out_dir, data_metadata, model_metrics, eval_metadata,
@@ -677,6 +684,7 @@ def run_pipeline(cfg, csv_filename=None, attack_type="fgsm", xai_method="both",
         "metrics": all_metrics,
         "metrics_schema": metrics_schema,
         "figures": all_figures,
+        "combined_roc_paths": combined_roc_paths,
         "timing": timer.summary(),
         "history": history,
         "out_dir": out_dir,
@@ -780,12 +788,14 @@ def run_epsilon_sweep(cfg, csv_filename=None, attack_type="fgsm", xai_method="ig
         timer.stop()
 
     # --- 5. Sweep over epsilons ---
+    combined_roc_paths = {}
     sweep_results = []
     attack_metrics = {}
     drift_detection_metrics = {}
     baseline_metrics = {}
 
     for eps_idx, eps in enumerate(eps_list):
+        epsilon_roc_results = {}
         status(f"Epsilon sweep: ε={eps} ({eps_idx+1}/{len(eps_list)})")
 
         for atk in attacks_to_run:
@@ -908,6 +918,8 @@ def run_epsilon_sweep(cfg, csv_filename=None, attack_type="fgsm", xai_method="ig
                     "random_attribution_null": random_null["details"],
                 }
 
+                epsilon_roc_results[f"{method}_{atk}"] = drift_detection_metrics[drift_key]
+
                 sweep_results.append({
                     "epsilon": eps,
                     "attack": atk,
@@ -922,6 +934,11 @@ def run_epsilon_sweep(cfg, csv_filename=None, attack_type="fgsm", xai_method="ig
                     "auc_cosine": float(cos_result["auc"]),
                     "auc_euclidean": float(euc_result["auc"]),
                 })
+
+        if epsilon_roc_results:
+            _, combined_roc_paths[str(eps)] = plot_combined_xai_roc(
+                epsilon_roc_results, out_dir, name=f"roc_combined_xai_drift_eps{eps}"
+            )
 
     # Save sweep results
     import pandas as _pd
@@ -954,6 +971,7 @@ def run_epsilon_sweep(cfg, csv_filename=None, attack_type="fgsm", xai_method="ig
 
     return {
         "sweep_results": sweep_results,
+        "combined_roc_paths": combined_roc_paths,
         "metrics_schema": metrics_schema,
         "timing": timer.summary(),
         "history": history,
