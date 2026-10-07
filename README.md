@@ -216,13 +216,15 @@ It will prompt you interactively for dataset, attack type, and other settings vi
 A standalone script for generating publication-ready figures suitable for inclusion in the MSc dissertation. It produces space-efficient combined plots (2×2 grids) as well as individual figures, exported as both PNG (300 DPI) and PDF (vector).
 
 **Key figures generated:**
-- **Clean Explanation Stability vs Adversarial Drift** — overlaid histograms showing how attribution drift under FGSM/PGD compares to natural clean-pair variation (Cosine + Euclidean)
+- **Clean Explanation Stability vs Adversarial Drift** — overlaid histograms showing how attribution drift under FGSM/PGD compares to the clean control recorded in the source scores (Cosine + Euclidean)
 - **Epsilon vs AUC** — detection performance scaling with perturbation strength
 - **Epsilon vs Mean Drift** — log-scale attribution shift growth
 - **IG vs SHAP comparison** — grouped bars comparing XAI method effectiveness
 - **AUC Heatmap** — compact summary of all configurations
 - **ROC Overlays** — multi-metric ROC curves per configuration
 - **Top-K Feature Attribution Shifts** — which features change most under attack
+
+**Compatibility note:** The legacy `--rerun` path still uses the old clean-baseline helper signature and needs a separate computation update before use with the current pipeline. Existing cached scores retain their original baseline semantics; they must not be relabeled as same-input repeats. The current pipeline uses same-input clean explanation stability as described below.
 
 **Usage:**
 ```bash
@@ -266,19 +268,21 @@ Only samples where the model's prediction **doesn't change** after attack ("pres
 
 ### Reproducibility
 
-All experiments use a fixed random seed (default: 42) for deterministic results across runs. The seed controls data splits, model initialisation, evaluation sampling, clean-baseline pairing, and bootstrap confidence intervals.
+All experiments use a fixed random seed (default: 42) for deterministic results across runs. The seed controls data splits, model initialisation, evaluation sampling, auxiliary prediction-confidence/input-L2 clean-sample pairing, and bootstrap confidence intervals.
 
 Each run writes `run_metadata.json` and `metrics_schema.json` alongside the plots. These files record the resolved config, dataset filename, feature count, label distribution, split sizes, model accuracy, evaluation subset counts, device, package versions, attack settings, XAI settings, drift metrics, and baseline detector metrics.
 
 Each run also writes `experiment_summary.csv`, a flat thesis-ready table with one row per attack × XAI × drift metric. It includes AUC, bootstrap confidence intervals, clean/adversarial mean drift, flip rate, preserved sample count, model accuracy, and baseline detector AUCs.
 
-### Interpreting Strict Clean-Baseline AUC
+### Interpreting Same-Input Clean Explanation Stability
 
-ROC-AUC is computed by comparing **adversarial attribution drift** against **clean-pair attribution drift**. This is deliberately stricter than comparing adversarial drift against zero. A low AUC does not necessarily mean the pipeline failed; it can mean the adversarial perturbation changed explanations less than normal variation between clean samples.
+XAI ROC-AUC compares **adversarial attribution drift** against **same-input clean explanation stability**. The clean control computes the attribution twice for the same unchanged clean input, using the same explainer parameters and background, and measures drift between those two computations: `D(E1(x), E2(x))`. Adversarial drift is `D(E1(x), E(x_adv))`. These are separate explainer calls; deterministic explainers may return identical attributions and zero clean drift. Interpret AUC alongside drift magnitudes, since high AUC against this control alone does not establish practical detection robustness.
+
+IG and SHAP cosine/Euclidean results in `metrics_schema.json` and `experiment_summary.csv` identify this repeated-attribution clean baseline with `baseline_type: "same_input_repeat"`. Prediction-confidence and input-L2 auxiliary baselines still compare different clean samples. The random-attribution null compares statistically equivalent independent random attribution distances and is expected around AUC ≈ 0.5, with finite-sample variation.
 
 For dissertation analysis, interpret AUC together with:
 
-- mean adversarial drift vs mean clean-pair drift
+- mean adversarial drift vs mean same-input repeated clean-attribution drift
 - prediction flip rate
 - preserved-prediction sample count
 - bootstrap confidence intervals
@@ -286,7 +290,7 @@ For dissertation analysis, interpret AUC together with:
 
 ### Configuration Warnings
 
-The Streamlit interface warns before and after runs when selected settings may produce weak, misleading, slow, or unstable results. Each warning includes a recommended adjustment so users know what to change. Examples include very small ε values, very large ε values, PGD step sizes larger than ε, low PGD iteration counts, SHAP with large sample sizes, CPU-heavy sweeps, low model accuracy, high flip rates, too few preserved samples, low strict-baseline AUC, or wide bootstrap confidence intervals.
+The Streamlit interface warns before and after runs when selected settings may produce weak, misleading, slow, or unstable results. Each warning includes a recommended adjustment so users know what to change. Examples include very small ε values, very large ε values, PGD step sizes larger than ε, low PGD iteration counts, SHAP with large sample sizes, CPU-heavy sweeps, low model accuracy, high flip rates, too few preserved samples, low AUC against the repeated-attribution clean baseline, or wide bootstrap confidence intervals.
 
 ---
 

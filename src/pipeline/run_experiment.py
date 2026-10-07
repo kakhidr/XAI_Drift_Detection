@@ -173,17 +173,26 @@ def _clean_pair_indices(labels, seed: int):
     return paired
 
 
-def _clean_baseline_scores(metric_fn, attr_clean, labels, seed: int):
+def _clean_baseline_scores(metric_fn, attr_clean, attr_clean_repeat):
+    """Compare independent attribution computations of the same clean inputs."""
     attr_clean = np.asarray(attr_clean)
-    if len(attr_clean) <= 1:
-        return np.zeros(len(attr_clean), dtype=float)
-    paired = _clean_pair_indices(labels, seed)
-    return metric_fn(attr_clean, attr_clean[paired])
+    attr_clean_repeat = np.asarray(attr_clean_repeat)
+    if attr_clean.shape != attr_clean_repeat.shape:
+        raise ValueError("Repeated clean attributions must have the same shape as the original clean attributions.")
+    return metric_fn(attr_clean, attr_clean_repeat)
 
 
-def _compute_detection(metric_fn, attr_clean, attr_adv, labels, out_dir, name, seed):
+def _compute_detection(
+    metric_fn,
+    attr_clean,
+    attr_adv,
+    attr_clean_repeat,
+    out_dir,
+    name,
+    seed,
+):
     adv_scores = metric_fn(attr_clean, attr_adv)
-    clean_scores = _clean_baseline_scores(metric_fn, attr_clean, labels, seed)
+    clean_scores = _clean_baseline_scores(metric_fn, attr_clean, attr_clean_repeat)
     auc_val, fig, path, details = compute_roc(
         adv_scores,
         out_dir,
@@ -354,6 +363,7 @@ def write_experiment_summary(out_dir, run_metadata, metrics_schema, legacy_metri
                 "pgd_alpha": attack_info.get("alpha"),
                 "pgd_iters": attack_info.get("iters"),
                 "drift_metric": metric_name,
+                "baseline_type": details.get("baseline_type"),
                 "auc": details.get("auc"),
                 "auc_ci_low": ci_low,
                 "auc_ci_high": ci_high,
@@ -554,12 +564,19 @@ def run_pipeline(cfg, csv_filename=None, attack_type="fgsm", xai_method="both",
                 attr_clean = compute_ig(model, X_c, target=1,
                                         batch_size=ig_cfg.get("batch_size", 64),
                                         n_steps=ig_cfg.get("n_steps", 50))
+
+                attr_clean_repeat = compute_ig(model, X_c, target=1,
+                                               batch_size=ig_cfg.get("batch_size", 64),
+                                               n_steps=ig_cfg.get("n_steps", 50))
+
                 attr_adv = compute_ig(model, X_a, target=1,
                                       batch_size=ig_cfg.get("batch_size", 64),
                                       n_steps=ig_cfg.get("n_steps", 50))
             else:  # shap
                 attr_clean = compute_shap(model, X_c, X_bg,
                                           batch_size=shap_cfg.get("batch_size", 64))
+                attr_clean_repeat = compute_shap(model, X_c, X_bg,
+                                                 batch_size=shap_cfg.get("batch_size", 64))
                 attr_adv = compute_shap(model, X_a, X_bg,
                                         batch_size=shap_cfg.get("batch_size", 64))
             timer.stop()
@@ -568,11 +585,15 @@ def run_pipeline(cfg, csv_filename=None, attack_type="fgsm", xai_method="both",
             status(f"Computing drift for {label}...")
             timer.start(f"Drift: {label}")
             cos_result = _compute_detection(
-                compute_cosine, attr_clean, attr_adv, y_c, out_dir, f"{method}_{atk}_cos", seed
+                compute_cosine, attr_clean, attr_adv, attr_clean_repeat,
+                out_dir, f"{method}_{atk}_cos", seed
             )
             euc_result = _compute_detection(
-                compute_euclidean, attr_clean, attr_adv, y_c, out_dir, f"{method}_{atk}_euc", seed
+                compute_euclidean, attr_clean, attr_adv, attr_clean_repeat,
+                out_dir, f"{method}_{atk}_euc", seed
             )
+            cos_result["details"]["baseline_type"] = "same_input_repeat"
+            euc_result["details"]["baseline_type"] = "same_input_repeat"
             cos_d = cos_result["adversarial_scores"]
             euc_d = euc_result["adversarial_scores"]
             timer.stop()
@@ -591,11 +612,13 @@ def run_pipeline(cfg, csv_filename=None, attack_type="fgsm", xai_method="both",
             rng = np.random.default_rng(seed)
             rand_clean = rng.normal(size=np.asarray(attr_clean).shape)
             rand_adv = rng.normal(size=np.asarray(attr_adv).shape)
+            # Independent draws give both null score groups the same distribution.
+            rand_clean_repeat = rng.normal(size=rand_clean.shape)
             random_null = _compute_detection(
                 compute_euclidean,
                 rand_clean,
                 rand_adv,
-                y_c,
+                rand_clean_repeat,
                 out_dir,
                 f"baseline_random_attr_{method}_{atk}",
                 seed,
@@ -732,8 +755,9 @@ def run_epsilon_sweep(cfg, csv_filename=None, attack_type="fgsm", xai_method="ig
     shap_cfg = cfg.get("explain", {}).get("shap", {})
     X_bg = torch.tensor(X_train[:int(shap_cfg.get("background_size", 100))], dtype=torch.float32, device=device)
 
-    # --- 4. Pre-compute clean attributions (once per XAI method) ---
+    # --- 4. Pre-compute two independent clean passes per XAI method ---
     clean_attrs = {}
+    clean_attrs_repeat = {}
     for method in xai_methods:
         status(f"Computing clean {method.upper()} attributions...")
         timer.start(f"Clean XAI ({method.upper()})")
@@ -741,9 +765,18 @@ def run_epsilon_sweep(cfg, csv_filename=None, attack_type="fgsm", xai_method="ig
             clean_attrs["ig"] = compute_ig(model, X_eval, target=1,
                                            batch_size=ig_cfg.get("batch_size", 64),
                                            n_steps=ig_cfg.get("n_steps", 50))
+            clean_attrs_repeat["ig"] = compute_ig(
+                model, X_eval, target=1,
+                batch_size=ig_cfg.get("batch_size", 64),
+                n_steps=ig_cfg.get("n_steps", 50),
+            )
         else:
             clean_attrs["shap"] = compute_shap(model, X_eval, X_bg,
                                                batch_size=shap_cfg.get("batch_size", 64))
+            clean_attrs_repeat["shap"] = compute_shap(
+                model, X_eval, X_bg,
+                batch_size=shap_cfg.get("batch_size", 64),
+            )
         timer.stop()
 
     # --- 5. Sweep over epsilons ---
@@ -821,32 +854,49 @@ def run_epsilon_sweep(cfg, csv_filename=None, attack_type="fgsm", xai_method="ig
                     attr_adv = compute_ig(model, X_a, target=1,
                                           batch_size=ig_cfg.get("batch_size", 64),
                                           n_steps=ig_cfg.get("n_steps", 50))
-                    attr_clean_f = clean_attrs["ig"][mask]
                 else:
                     attr_adv = compute_shap(model, X_a, X_bg,
                                             batch_size=shap_cfg.get("batch_size", 64))
-                    attr_clean_f = clean_attrs["shap"][mask]
                 timer.stop()
+
+                # Explainers return NumPy arrays, including when running on CUDA.
+                attr_mask = mask.detach().cpu().numpy()
+                attr_clean_f = clean_attrs[method][attr_mask]
+                attr_clean_repeat_f = clean_attrs_repeat[method][attr_mask]
 
                 # Drift
                 cos_result = _compute_detection(
-                    compute_cosine, attr_clean_f, attr_adv, y_c, out_dir,
-                    f"sweep_{method}_{atk}_cos_eps{eps}", seed
+                    compute_cosine,
+                    attr_clean_f,
+                    attr_adv,
+                    attr_clean_repeat_f,
+                    out_dir,
+                    f"sweep_{method}_{atk}_cos_eps{eps}",
+                    seed,
                 )
                 euc_result = _compute_detection(
-                    compute_euclidean, attr_clean_f, attr_adv, y_c, out_dir,
-                    f"sweep_{method}_{atk}_euc_eps{eps}", seed
+                    compute_euclidean,
+                    attr_clean_f,
+                    attr_adv,
+                    attr_clean_repeat_f,
+                    out_dir,
+                    f"sweep_{method}_{atk}_euc_eps{eps}",
+                    seed,
                 )
+                cos_result["details"]["baseline_type"] = "same_input_repeat"
+                euc_result["details"]["baseline_type"] = "same_input_repeat"
                 cos_d = cos_result["adversarial_scores"]
                 euc_d = euc_result["adversarial_scores"]
                 rng = np.random.default_rng(seed)
                 rand_clean = rng.normal(size=np.asarray(attr_clean_f).shape)
                 rand_adv = rng.normal(size=np.asarray(attr_adv).shape)
+                # Independent draws give both null score groups the same distribution.
+                rand_clean_repeat = rng.normal(size=rand_clean.shape)
                 random_null = _compute_detection(
                     compute_euclidean,
                     rand_clean,
                     rand_adv,
-                    y_c,
+                    rand_clean_repeat,
                     out_dir,
                     f"sweep_baseline_random_attr_{method}_{atk}_eps{eps}",
                     seed,

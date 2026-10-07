@@ -46,9 +46,9 @@ def build_pre_run_alerts(run_mode, attack_type, xai_method, max_eval, epsilon,
 
     if min_eps < 0.005:
         warnings.append(
-            f"Small ε detected (min ε={min_eps:g}). Attribution drift may be smaller than natural clean-sample variation, "
-            "so strict clean-baseline AUC can be low even when the pipeline is working. Recommended adjustment: include "
-            "moderate ε values such as 0.01, 0.02, or 0.05 in sweeps for comparison."
+            f"Small ε detected (min ε={min_eps:g}). Interpret adversarial attribution drift relative to "
+            "same-input clean explanation stability. Deterministic repeated attributions may have zero drift, "
+            "so small perturbations do not necessarily imply low AUC."
         )
     if max_eps >= 0.2:
         warnings.append(
@@ -95,8 +95,9 @@ def build_pre_run_alerts(run_mode, attack_type, xai_method, max_eval, epsilon,
         infos.append("CUDA is disabled in config, so runs will use CPU even if a GPU is available.")
 
     infos.append(
-        "AUC is evaluated against clean-pair attribution drift, not an artificial zero baseline. "
-        "This is stricter and may produce lower AUC values than earlier versions."
+        "XAI ROC AUC compares adversarial explanation drift against same-input repeated clean-attribution drift. "
+        "The same-input clean explanation stability control computes the attribution twice for the same unchanged "
+        "clean input and measures drift between those two computations."
     )
     return errors, warnings, infos
 
@@ -141,10 +142,9 @@ def build_result_quality_alerts(results):
             auc_val = details.get("auc")
             if auc_val is not None and auc_val < 0.5:
                 infos.append(
-                    f"{key} {metric_name}: AUC={auc_val:.3f}. Under the strict clean-pair baseline, adversarial drift is "
-                    "smaller than normal clean-sample attribution variation for this metric. Recommended adjustment: do not "
-                    "treat this as a broken run; compare mean adversarial vs clean drift, try a wider ε sweep if needed, "
-                    "and report it as conservative-baseline evidence."
+                    f"{key} {metric_name}: AUC={auc_val:.3f}. Adversarial drift ranks below repeated-attribution clean "
+                    "drift more often than above it for this metric. Inspect the clean and adversarial drift "
+                    "distributions and attribution repeatability before interpreting this result."
                 )
             ci = details.get("auc_ci_95")
             if ci:
@@ -386,7 +386,7 @@ with `sus` (suspicious) and `evil` labels for binary classification.
 | **4. Adversarial Attack** | FGSM (single gradient step) and/or PGD (iterative projected gradient) |
 | **5. XAI Attribution** | Integrated Gradients and/or SHAP DeepExplainer on clean & adversarial inputs |
 | **6. Drift Measurement** | Cosine similarity and Euclidean distance between attribution pairs |
-| **7. ROC Evaluation** | Clean-pair attribution drift vs adversarial drift, with AUC and quality checks |
+| **7. ROC Evaluation** | Same-input clean explanation stability vs adversarial explanation drift, with AUC and quality checks |
 """)
     with col2:
         st.subheader("💡 Tips")
@@ -395,7 +395,7 @@ with `sus` (suspicious) and `evil` labels for binary classification.
 - **For thesis figures**, use **Both attacks + Both XAI + 3000 samples** for comprehensive results
 - **Epsilon (ε)** controls attack strength: small values (0.01) = subtle, large (0.3) = aggressive
 - **PGD iterations** increase attack quality but also computation time
-- **Compare runs** with different ε values to show how adversarial drift separates from clean-pair variation
+- **Compare runs** with different ε values to show how adversarial drift separates from same-input repeated clean-attribution drift
 - All results include **dynamic interpretations** that reference your specific settings
 
 **Data folder structure:**
@@ -557,9 +557,9 @@ if run_mode == "Epsilon Sweep":
     avail_cols = [c for c in display_cols if c in sweep_df.columns]
     st.caption(
         "Each row shows the results for one ε × attack × XAI combination. "
-        "AUC compares adversarial attribution drift against natural clean-pair attribution drift. "
+        "AUC compares adversarial attribution drift against same-input repeated clean-attribution drift. "
         "Higher ε often increases attack strength and flip rate, but AUC may stay low when perturbation drift "
-        "is smaller than normal clean-sample explanation variation."
+        "is smaller than same-input repeated clean-attribution drift."
     )
     st.dataframe(sweep_df[avail_cols].round(4), width="stretch", hide_index=True)
 
@@ -605,8 +605,8 @@ if run_mode == "Epsilon Sweep":
 
     st.caption(
         "These plots show adversarial attribution drift as ε changes. Interpret them alongside the clean-drift "
-        "columns in the table: a larger adversarial drift is useful only if it separates from natural clean-pair "
-        "attribution variation."
+        "columns in the table: a larger adversarial drift is useful only if it separates from same-input repeated "
+        "clean-attribution drift."
     )
 
     # --- AUC vs Epsilon Plot ---
@@ -653,14 +653,14 @@ if run_mode == "Epsilon Sweep":
 
         if high_eps_auc > low_eps_auc + 0.1:
             auc_caption += (
-                f"Strict-baseline separation improves from ε={min_eps} (AUC={low_eps_auc:.4f}) "
+                f"Repeated-attribution clean baseline separation improves from ε={min_eps} (AUC={low_eps_auc:.4f}) "
                 f"to ε={max_eps} (AUC={high_eps_auc:.4f}). This suggests larger perturbations move attributions "
-                f"farther away from natural clean-pair variation, though they may also flip more predictions."
+                f"farther away from same-input repeated clean-attribution drift, though they may also flip more predictions."
             )
         elif high_eps_auc < low_eps_auc + 0.02:
             auc_caption += (
-                f"Strict-baseline AUC is relatively stable across ε values. This can mean adversarial drift remains "
-                f"within the range of natural clean-sample explanation variation."
+                f"Repeated-attribution clean baseline AUC changes little or decreases across these ε endpoints. "
+                f"Inspect drift magnitudes and score distributions alongside AUC."
             )
 
         st.caption(auc_caption)
@@ -967,20 +967,20 @@ else:
 metrics_notes = [
     f"Across **{len(metrics)} configuration(s)** (ε={epsilon}), "
     f"the mean AUC is **{mean_auc:.4f}**. "
-    f"AUC is measured against clean-pair attribution drift, so it tests whether adversarial drift separates from "
-    f"natural clean-sample explanation variation. The **best separation** was **{best[0].upper()}** using "
+    f"AUC tests whether adversarial explanation drift separates from same-input repeated clean-attribution drift. "
+    f"The **best separation** was **{best[0].upper()}** using "
     f"**{best[1]}** distance (AUC = {best[2]:.4f})"
 ]
 
 if worst[2] < 0.6:
     metrics_notes.append(
         f". The **weakest** was **{worst[0].upper()}** with **{worst[1]}** (AUC = {worst[2]:.4f}) — "
-        f"adversarial drift is smaller than or heavily overlapped with clean-pair attribution variation for that combination"
+        f"adversarial drift is smaller than or heavily overlapped with same-input repeated clean-attribution drift for that combination"
     )
 elif worst[2] < 0.75:
     metrics_notes.append(
         f". The **weakest** was **{worst[0].upper()}** with **{worst[1]}** (AUC = {worst[2]:.4f}) — "
-        f"strict-baseline separation is weak at this level and would need careful thresholding"
+        f"repeated-attribution clean baseline separation is weak at this level and would need careful thresholding"
     )
 
 metrics_notes.append(". ")
@@ -988,8 +988,8 @@ metrics_notes.append(". ")
 # Epsilon interpretation
 if epsilon < 0.01:
     metrics_notes.append(
-        f"With a small ε={epsilon}, perturbations are subtle and harder to detect — "
-        f"low strict-baseline AUC scores are expected when the attack barely changes attributions compared with clean variation. "
+        f"With a small ε={epsilon}, perturbations are subtle. Interpret AUC alongside drift magnitudes; "
+        f"deterministic repeated clean attributions may yield zero drift even when adversarial drift is small. "
     )
 elif epsilon > 0.1:
     metrics_notes.append(
@@ -998,18 +998,18 @@ elif epsilon > 0.1:
     )
     if mean_auc > 0.85:
         metrics_notes.append(
-            "The high AUC values confirm that XAI attributions shift measurably under strong perturbations, "
-            "making drift-based detection effective. "
+            "The high AUC values indicate separation from the repeated-attribution clean baseline. "
+            "Inspect drift magnitudes as well; deterministic clean repeats may have zero drift. "
         )
     elif mean_auc < 0.7:
         metrics_notes.append(
-            "Despite the large ε, strict-baseline AUC is low — this indicates adversarial attribution shifts "
-            "do not separate cleanly from natural clean-sample variation. "
+            "Despite the large ε, repeated-attribution clean baseline AUC is low — this indicates adversarial attribution shifts "
+            "do not separate cleanly from same-input repeated clean-attribution drift. "
         )
 else:
     metrics_notes.append(
         f"ε={epsilon} is a moderate perturbation budget — "
-        f"{'strict-baseline separation works well at this level' if mean_auc > 0.8 else 'the attack operates near or inside natural attribution variation'}. "
+        f"{'repeated-attribution clean baseline separation works well at this level' if mean_auc > 0.8 else 'the attack operates near or inside same-input repeated clean-attribution drift'}. "
     )
 
 st.caption("".join(metrics_notes))
@@ -1056,23 +1056,23 @@ for key, vals in metrics.items():
 
         config_notes.append(
             f"Among the **{vals['n_preserved']}** preserved-prediction samples, "
-            f"**{best_metric[0]}** distance had the best clean-pair baseline separation (AUC = {best_metric[1]:.4f}). "
+            f"**{best_metric[0]}** distance had the best repeated-attribution clean baseline separation (AUC = {best_metric[1]:.4f}). "
         )
 
         if best_metric[1] > 0.9:
             config_notes.append(
-                f"This is excellent — {xai_name} attributions shift strongly under {atk_name}, "
-                f"and {best_metric[0]} distance separates that shift from natural clean-pair variation."
+                f"Separation is high for {xai_name} attributions under {atk_name}, "
+                f"and {best_metric[0]} distance separates that shift from same-input repeated clean-attribution drift."
             )
         elif best_metric[1] > 0.75:
             config_notes.append(
                 f"Separation is moderate — {xai_name} picks up some attribution drift from {atk_name}, "
-                f"but there is overlap with clean-pair attribution variation."
+                f"but there is overlap with same-input repeated clean-attribution drift."
             )
         else:
             config_notes.append(
-                f"Strict-baseline separation is weak — {xai_name} attributions do not shift enough under {atk_name} "
-                f"for {best_metric[0]} distance to exceed natural clean-sample variation."
+                f"Repeated-attribution clean baseline separation is weak — {xai_name} attributions do not shift enough under {atk_name} "
+                f"for {best_metric[0]} distance to exceed same-input repeated clean-attribution drift."
             )
 
         st.caption("".join(config_notes))
@@ -1095,13 +1095,13 @@ n_roc = len(roc_keys)
 
 roc_notes = [
     f"**{n_roc} ROC curve(s)** generated for {max_eval} evaluation samples at ε={epsilon}. "
-    f"Each curve uses clean-pair attribution drift as the negative class and adversarial drift as the positive class, "
+    f"Each curve uses same-input repeated clean-attribution drift as the negative class and adversarial drift as the positive class, "
     f"then plots True Positive Rate against False Positive Rate. "
 ]
 if best[2] > 0.9:
     roc_notes.append(
-        "The best curves hug the top-left corner, confirming strong detection — "
-        "these results are suitable for thesis figures demonstrating effective drift-based detection. "
+        "The best curves show strong separation from the repeated-attribution clean baseline. "
+        "This measures same-input clean explanation stability; interpret AUC alongside drift magnitudes. "
     )
 if attack_type == "both":
     roc_notes.append(

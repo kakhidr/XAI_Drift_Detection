@@ -39,7 +39,7 @@ All notable changes to the **XAI Drift Detection** project are documented in thi
 ## [1.3.0] — 2026-05-06
 
 ### Added
-- **Research-rigor metric evaluation** — ROC-AUC now compares adversarial attribution drift against clean-pair attribution drift instead of an artificial zero baseline
+- **Research-rigor metric evaluation** — introduced an empirical clean attribution control for ROC-AUC. The current XAI control measures same-input clean explanation stability by computing attributions twice for each unchanged clean input and measuring drift between the two computations (`baseline_type: "same_input_repeat"`)
 - Bootstrap 95% AUC confidence intervals and clean-percentile threshold metrics for drift ROC outputs
 - Structured run provenance saved to `run_metadata.json`, including resolved config, dataset metadata, model metrics, package versions, device, seed, and evaluation subset details
 - Structured `metrics_schema.json` separating model metrics, attack metrics, drift detection metrics, baseline metrics, and data metadata
@@ -49,14 +49,14 @@ All notable changes to the **XAI Drift Detection** project are documented in thi
   - raw-input L2 perturbation baseline
   - random-attribution null baseline
 - Streamlit pre-run warnings for risky configurations, including small/large ε, PGD alpha issues, low PGD iterations, SHAP-heavy runs, large sweeps, and CPU-heavy settings
-- Streamlit post-run result quality checks with recommended adjustments for low model accuracy, high flip rate, too few preserved samples, low strict-baseline AUC, and wide bootstrap confidence intervals
+- Streamlit post-run result quality checks with recommended adjustments for low model accuracy, high flip rate, too few preserved samples, low AUC against the repeated-attribution clean baseline, and wide bootstrap confidence intervals
 - Unit and smoke tests covering data loading, evaluation subset sampling, drift metrics, ROC details, and the full synthetic FGSM + IG pipeline
 
 ### Changed
 - Evaluation subset selection is now seeded, randomly sampled, class-balanced, and records requested vs actual counts
 - Dataset loading now validates empty files, missing labels, single-class data, severe class imbalance, missing numeric features, NaN/Inf values, and dropped non-numeric columns
 - `run_pipeline()` and `run_epsilon_sweep()` keep their existing call signatures but return `run_metadata`, `metrics_schema`, and `summary_path`
-- Streamlit result captions now explain strict clean-baseline AUC instead of assuming AUC should always increase with ε
+- Streamlit result captions now explain AUC against the repeated-attribution clean baseline instead of assuming AUC should always increase with ε
 - README updated with clean-baseline AUC interpretation, configuration warnings, provenance files, and `experiment_summary.csv`
 - Matplotlib/Fontconfig cache handling now uses writable temp directories to avoid noisy import/runtime warnings in constrained environments
 
